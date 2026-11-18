@@ -185,6 +185,7 @@ curl -fsSL https://raw.githubusercontent.com/zaylora/video-canvas/master/scripts
 
 | 内容                         | 文档                                                                                                    |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 营销与短剧仿拍二次开发       | [项目交接与设计方案](docs/仿拍二开/README.md) |
 | 开发环境、架构、测试与发布   | [开发指南](docs/development.md) · [贡献指南](CONTRIBUTING.md)                                           |
 | 生产部署                     | [生产 Docker 部署](docs/docker-production.md)                                                           |
 | 后端结构、配置项、完整接口表 | [backend/README.md](backend/README.md)                                                                  |
