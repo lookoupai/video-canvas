@@ -28,6 +28,7 @@ POSTGRES_PASSWORD=change-this
 APP_JWT_SECRET=change-this
 APP_AI_SECRET_KEY=change-this
 APP_SERVER_ALLOWED_ORIGINS=https://canvas.example.com
+APP_STORAGE_LOCAL_BASE_URL=https://canvas.example.com
 WEB_PORT=38080
 ```
 
@@ -40,6 +41,8 @@ docker compose up -d
 ```
 
 前端容器负责静态文件，并把 `/api/`、`/api/v1/ws` 和 `/files/` 转发到后端。素材默认存在容器的本地磁盘卷里。生产环境建议接对象存储：以超级管理员登录后台，在「系统设置 → 存储配置」里添加阿里云 OSS / 腾讯云 COS / AWS S3 / Cloudflare R2，测试连接通过后设为默认即可，不需要改环境变量也不需要重启；密钥用 `APP_AI_SECRET_KEY` 加密后存库，页面上只写不读。换存储只影响新素材，旧素材仍从原存储读取。
+
+使用本地磁盘素材作模型参考时，`APP_STORAGE_LOCAL_BASE_URL` 要填写渠道可以访问的站点地址（例如 `https://canvas.example.com`），不要追加 `/files`。否则参考素材只有相对路径，外部模型无法读取。修改后执行 `docker compose up -d backend` 使配置生效。
 
 > 从旧版升级：如果之前用 `APP_STORAGE_DRIVER=s3` 加 `APP_STORAGE_S3_*` 环境变量配置过对象存储（并且这些变量确实传进了后端容器），升级后首次启动会自动把它导入为一套名为「迁移自环境变量」的存储并设为默认，旧素材继续可用；导入后可以删掉这些环境变量。导入需要已配置 `APP_AI_SECRET_KEY`，否则后端会拒绝启动并说明原因。
 
