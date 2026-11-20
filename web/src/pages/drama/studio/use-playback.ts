@@ -25,7 +25,7 @@ import {
 export type Slot = 0 | 1;
 
 /** 装进 video 的标记：同一个片段同一个地址就不重复装 */
-const keyOf = (item: PlayItem) => `${item.id}|${item.url}`;
+const keyOf = (item: PlayItem) => `${item.id}|${item.url}|${item.mediaStart}|${item.mediaEnd}`;
 
 /** 片段条连播（两个 video 双缓冲）的对外状态与动作 */
 export type Playback = {
@@ -51,6 +51,8 @@ export type Playback = {
     onEnded: () => void;
     onError: () => void;
     onTimeUpdate: () => void;
+    /** 元数据就绪后定位到本素材的裁剪起点。 */
+    onLoadedMetadata: () => void;
   };
   /** 绑到播放头元素：连播时由 hook 直接改它的 transform，不经过 React 渲染 */
   bindPlayhead: (el: HTMLElement | null) => void;
@@ -111,6 +113,7 @@ export function usePlayback(segments: readonly Segment[]): Playback {
     const key = keyOf(item);
     if (video.dataset.key === key) return;
     video.dataset.key = key;
+    video.dataset.mediaStart = String(item.mediaStart);
     video.src = item.url;
     video.load();
   }, []);
@@ -121,7 +124,7 @@ export function usePlayback(segments: readonly Segment[]): Playback {
     const video = videos.current[activeRef.current];
     if (!item || !video) return;
     const length = item.end - item.start;
-    const offset = Math.min(video.currentTime, length);
+    const offset = Math.min(Math.max(video.currentTime - item.mediaStart, 0), length);
     const el = playheadEl.current;
     if (el) {
       const x = playheadX(segmentsRef.current, item.id, length > 0 ? offset / length : 0);
@@ -151,7 +154,7 @@ export function usePlayback(segments: readonly Segment[]): Playback {
       const slot: Slot = preloaded ? ((1 - before) as Slot) : before;
       if (!preloaded) load(slot, item);
       // 回到同一段的开头（点了当前段）
-      if (!preloaded && videos.current[slot]) videos.current[slot].currentTime = 0;
+      if (videos.current[slot]) videos.current[slot].currentTime = item.mediaStart;
       activeRef.current = slot;
       setActiveSlot(slot);
       // 不可见的那个 video 预加载再下一段
@@ -184,6 +187,17 @@ export function usePlayback(segments: readonly Segment[]): Playback {
     if (next === null) stop(true);
     else show(next, true);
   }, [show, stop]);
+
+  /** 媒体时间达到窗口终点就切镜，不能等模型视频的完整片尾。 */
+  const checkBoundary = useCallback(() => {
+    const item = playlistRef.current[indexRef.current];
+    const video = videos.current[activeRef.current];
+    if (!playingRef.current || !item?.trimmed || !video || video.currentTime < item.mediaEnd)
+      return false;
+    video.pause();
+    advance();
+    return true;
+  }, [advance]);
 
   const toggle = useCallback(() => {
     if (playlistRef.current.length === 0) return;
@@ -230,15 +244,15 @@ export function usePlayback(segments: readonly Segment[]): Playback {
 
   // 播放头：不减弱动态时每帧同步，否则只在 timeupdate 时步进
   useEffect(() => {
-    if (!playing || reduce) return;
+    if (!playing || (reduce && !playlist.some((item) => item.trimmed))) return;
     let frame = 0;
     const loop = () => {
-      tick();
+      if (!checkBoundary() && !reduce) tick();
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(frame);
-  }, [playing, reduce, tick]);
+  }, [playing, reduce, tick, checkBoundary, playlist]);
 
   // 离开页面时停止，避免后台继续出声
   useEffect(() => {
@@ -268,10 +282,14 @@ export function usePlayback(segments: readonly Segment[]): Playback {
         if (which === activeRef.current && indexRef.current >= 0 && playingRef.current) advance();
       },
       onTimeUpdate: () => {
-        if (which === activeRef.current && reduce) tick();
+        if (which === activeRef.current && !checkBoundary() && reduce) tick();
+      },
+      onLoadedMetadata: () => {
+        const video = videos.current[which];
+        if (video?.dataset.key) video.currentTime = Number(video.dataset.mediaStart ?? 0);
       },
     }),
-    [activeSlot, advance, reduce, tick],
+    [activeSlot, advance, checkBoundary, reduce, tick],
   );
 
   return {

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"time"
 
@@ -61,6 +62,7 @@ func (r *DramaRepository) SaveSegment(ctx context.Context, row *model.DramaSegme
 	res := r.db.WithContext(ctx).Model(&model.DramaSegment{}).Where("user_id = ? AND episode_id = ? AND id = ? AND revision = ?", row.UserID, row.EpisodeID, row.ID, revision).Updates(map[string]any{
 		"seq": row.Seq, "seconds": row.Seconds, "prompt": row.Prompt,
 		"chosen_task_id": row.ChosenTaskID, "adaptations": segmentAdaptations(row.Adaptations),
+		"remake":   segmentAdaptations(row.Remake),
 		"revision": gorm.Expr("revision + 1"), "updated_at": now,
 	})
 	if res.Error != nil {
@@ -70,7 +72,7 @@ func (r *DramaRepository) SaveSegment(ctx context.Context, row *model.DramaSegme
 		return ErrStateConflict
 	}
 	row.Revision, row.UpdatedAt = revision+1, now
-	if previous.Seq != row.Seq || !sameChosenTask(previous.ChosenTaskID, row.ChosenTaskID) {
+	if previous.Seq != row.Seq || !sameChosenTask(previous.ChosenTaskID, row.ChosenTaskID) || !bytes.Equal(segmentAdaptations(previous.Remake), segmentAdaptations(row.Remake)) {
 		return r.bumpSegmentVersion(ctx, row.UserID, row.EpisodeID)
 	}
 	return nil

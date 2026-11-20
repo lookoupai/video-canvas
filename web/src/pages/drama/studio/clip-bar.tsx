@@ -6,7 +6,14 @@ import { VideoPoster } from "@/components/canvas/media-preview";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Segment } from "@/api/drama/type";
-import { applyOrder, clipWidth, orderIds, playableTake, sameOrder } from "@/utils/drama/segments";
+import {
+  applyOrder,
+  clipWidth,
+  orderIds,
+  playableTake,
+  sameOrder,
+  segmentSeconds,
+} from "@/utils/drama/segments";
 
 import { usePlaybackContext } from "./use-playback";
 import { useStudio } from "./use-studio";
@@ -34,8 +41,8 @@ function Clip({
       role="button"
       tabIndex={0}
       aria-current={selected}
-      aria-label={`片段 ${segment.seq + 1}，${segment.seconds} 秒`}
-      style={{ width: clipWidth(segment.seconds) }}
+      aria-label={`片段 ${segment.seq + 1}，${segmentSeconds(segment)} 秒`}
+      style={{ width: clipWidth(segmentSeconds(segment)) }}
       // 点击（不是拖动）才选中：拖动结束不会误触
       onTap={onSelect}
       onKeyDown={(event) => {
@@ -73,7 +80,7 @@ function Clip({
         )}
       >
         <span>{String(segment.seq + 1).padStart(2, "0")}</span>
-        <span>{segment.seconds}s</span>
+        <span>{segmentSeconds(segment)}s</span>
       </div>
     </Reorder.Item>
   );

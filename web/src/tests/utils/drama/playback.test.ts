@@ -76,6 +76,26 @@ describe("连播列表 buildPlaylist", () => {
   test("没有任何可播放片段是空列表", () => {
     expect(buildPlaylist([seg("x", 0, 5)])).toEqual([]);
   });
+
+  test("仿拍预览使用目标窗口，时间轴不包含模型生成的多余片尾", () => {
+    const first = seg("a", 0, 4, "https://cdn/a.mp4", 4000);
+    first.remake = {
+      adoptionId: "adopt",
+      referenceId: "ref",
+      referenceRevision: 3,
+      assetId: "1",
+      sources: [],
+      roles: [],
+      targetDurationMs: 2500,
+      trimStartMs: 500,
+    };
+    const playlist = buildPlaylist([first, seg("b", 1, 5, "https://cdn/b.mp4", 5000)]);
+    expect(playlist.map((item) => [item.start, item.end])).toEqual([
+      [0, 2.5],
+      [2.5, 7.5],
+    ]);
+    expect(playlist[0]).toMatchObject({ mediaStart: 0.5, mediaEnd: 3 });
+  });
 });
 
 describe("时间与片段换算", () => {

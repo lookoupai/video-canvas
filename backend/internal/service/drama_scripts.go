@@ -42,6 +42,9 @@ func (s *DramaService) runScripts(ctx context.Context, p *model.DramaProject, j 
 				return nil, 0, errcode.ErrDramaEpisodeSourceTooLong
 			}
 		}
+		if e := referenceScriptVariables(j, ep, snap, vars); e != nil {
+			return nil, 0, e
+		}
 		// 只有一次调用：写法和格式都由提示词正文决定（内置是标准短剧剧本），输出原样就是本集剧本，代码不再改写
 		v, callCost, e := s.callDrama(ctx, j, snap, "scripts", fmt.Sprintf("episode=%d", ep.No), vars, nil)
 		if e != nil {

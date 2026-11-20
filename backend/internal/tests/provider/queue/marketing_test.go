@@ -2,6 +2,7 @@ package queue_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -12,8 +13,59 @@ import (
 
 // stubMarketing 记录收到的轮次 id。
 type stubMarketing struct {
-	mu  sync.Mutex
-	ids []uint64
+	mu       sync.Mutex
+	ids      []uint64
+	composed []uint64
+}
+
+func (s *stubMarketing) HandleRemakeComposition(_ context.Context, _, _, id uint64, _ int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.composed = append(s.composed, id)
+	return nil
+}
+
+func TestRemakeComposeJobRunsAfterCommit(t *testing.T) {
+	db := queueDB(t)
+	stub := &stubMarketing{}
+	r := newRig(t, db, rigOpts{marketing: stub})
+	repo := repository.NewMarketingRepository(db)
+	repo.SetEnqueuer(r.rt)
+	err := repo.WithTx(t.Context(), func(tx repository.MarketingTx) error {
+		return tx.EnqueueRemakeComposition(t.Context(), 7, 10, 42, 1)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, 10*time.Second, "合成 job 被执行", func() bool {
+		stub.mu.Lock()
+		defer stub.mu.Unlock()
+		return len(stub.composed) == 1 && stub.composed[0] == 42
+	})
+}
+
+func TestRemakeComposeJobRollsBackWithSnapshot(t *testing.T) {
+	db := queueDB(t)
+	stub := &stubMarketing{}
+	rig := newRig(t, db, rigOpts{marketing: stub})
+	repo := repository.NewMarketingRepository(db)
+	repo.SetEnqueuer(rig.rt)
+	err := repo.WithTx(t.Context(), func(tx repository.MarketingTx) error {
+		if err := tx.EnqueueRemakeComposition(t.Context(), 7, 10, 42, 1); err != nil {
+			return err
+		}
+		return context.Canceled
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("事务结果: %v", err)
+	}
+	var jobs int64
+	if err := db.Table("river_job").Where("kind = ? AND args->>'id' = ?", "marketing_remake_compose", "42").Count(&jobs).Error; err != nil {
+		t.Fatal(err)
+	}
+	if jobs != 0 {
+		t.Fatalf("回滚后存在孤立合成 job: %d", jobs)
+	}
 }
 
 func (s *stubMarketing) HandleMarketingRound(_ context.Context, id uint64) error {

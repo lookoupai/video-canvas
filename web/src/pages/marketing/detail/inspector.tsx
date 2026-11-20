@@ -9,6 +9,7 @@ import {
   Copyright,
   Download,
   FileText,
+  Film,
   Flame,
   Loader2,
   Megaphone,
@@ -61,6 +62,7 @@ import { formatSeconds } from "@/utils/marketing/workbench";
 
 import { useCurrentShot, useRefollowCost } from "./hooks";
 import { CanvasDialog, downloadUrl, takeFileName } from "./script-dialogs";
+import { RemakePreviewDialog } from "./remake-preview";
 import { PromptPanel } from "./prompt-panel";
 import type { MarketingActions } from "./use-actions";
 
@@ -451,6 +453,8 @@ export function ScriptInspector({
   const current = useCurrentShot(script.shots);
   const scrolled = useScrolledAt();
   const [canvasOpen, setCanvasOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [initialShot, setInitialShot] = useState<number | null>(null);
 
   const follow = script.kind === "follow";
   const busy = isScriptBusy(script.status);
@@ -472,11 +476,11 @@ export function ScriptInspector({
     if (narrationsChanged(script, narrations)) void actions.saveNarrations(script, narrations);
   };
 
-  /** 「参考 n」：选中原片并跳到那一镜 */
-  const openRef = (index: number) => {
-    const shot = script.shots[index];
-    const ref = round.reverse?.shots.find((item) => item.id === shot.refShot);
-    useWorkbenchStore.getState().select("ref", ref?.start ?? 0);
+  /** 从脚本或单镜打开同一份快照，先暂停舞台上的成片。 */
+  const openPreview = (index: number | null) => {
+    controls?.pause();
+    setInitialShot(index);
+    setPreviewOpen(true);
   };
 
   /** 先同步打开空白标签（异步完成后再开会被拦截），拿到画布 ID 再导航过去 */
@@ -516,6 +520,12 @@ export function ScriptInspector({
             {scriptStatusLabel(script.status)}
           </StatusPill>
           {script.edited && <StatusPill tone="muted">已修改</StatusPill>}
+          {follow && (
+            <Button size="sm" variant="ghost" className="ml-auto" onClick={() => openPreview(null)}>
+              <Film />
+              逐镜仿拍
+            </Button>
+          )}
         </div>
         <div className="mt-1.5 text-base leading-snug font-bold">{script.title}</div>
       </div>
@@ -554,10 +564,10 @@ export function ScriptInspector({
                       <span>
                         {shot.shot} · {shot.camera}
                       </span>
-                      {shot.refShot !== null && (
+                      {follow && shot.refShot !== null && (
                         <button
                           type="button"
-                          onClick={() => openRef(index)}
+                          onClick={() => openPreview(index)}
                           title="看原片这一镜"
                           className="bg-status-warning/12 text-status-warning hover:bg-status-warning/20 rounded-full px-2 text-[11px] leading-5"
                         >
@@ -677,6 +687,15 @@ export function ScriptInspector({
         onOpenChange={setCanvasOpen}
         onConfirm={() => void sendToCanvas()}
       />
+      {follow && (
+        <RemakePreviewDialog
+          script={script}
+          round={round}
+          open={previewOpen}
+          initialShot={initialShot}
+          onOpenChange={setPreviewOpen}
+        />
+      )}
     </aside>
   );
 }

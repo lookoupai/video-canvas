@@ -17,7 +17,7 @@ import {
 } from "@/utils/drama/compose";
 import { jobConflictReason } from "@/utils/drama/jobs";
 import { reloadSegments } from "@/utils/drama/segment-events";
-import { playableTake } from "@/utils/drama/segments";
+import { playableTake, segmentSeconds } from "@/utils/drama/segments";
 import type { WorkspaceStage } from "@/utils/drama/stages";
 
 import { useCompose } from "../use-compose";
@@ -68,7 +68,7 @@ export function FinalArea({
   const skipped = missingVideoSeqs(segments);
   const adopted = segments.filter((segment) => playableTake(segment)).length;
   const seconds = segments.reduce(
-    (sum, segment) => sum + (playableTake(segment) ? segment.seconds : 0),
+    (sum, segment) => sum + (playableTake(segment) ? segmentSeconds(segment) : 0),
     0,
   );
   const composing = !!running || pending === no;
@@ -221,7 +221,7 @@ export function FinalArea({
                   <span className="min-w-0 flex-1">
                     片段 {String(segment.seq + 1).padStart(2, "0")}
                     <small className="text-muted-foreground block text-[11.5px]">
-                      {segment.seconds}s
+                      {segmentSeconds(segment)}s
                     </small>
                   </span>
                   {take ? (

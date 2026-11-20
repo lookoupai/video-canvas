@@ -226,6 +226,16 @@ func (h *MarketingHandler) RestoreScript(c *gin.Context) {
 	reply(c, v, err)
 }
 
+// RemakePreview 返回跟拍脚本所采用的逐镜来源区间。
+func (h *MarketingHandler) RemakePreview(c *gin.Context) {
+	id, ok := CanvasPathID(c)
+	if !ok {
+		return
+	}
+	v, err := h.svc.RemakePreview(c.Request.Context(), currentUserID(c), id)
+	reply(c, v, err)
+}
+
 // Prompt 返回提示词预览（GET /marketing-scripts/:id/prompt?video_model=）。
 func (h *MarketingHandler) Prompt(c *gin.Context) {
 	id, ok := CanvasPathID(c)

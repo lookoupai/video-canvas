@@ -157,7 +157,7 @@ export function Topbar({
   /** 任务面板里点集号：跳到这一步对应的工序页和集 */
   onGo: (stage: WorkspaceStage, ep?: number) => void;
 }) {
-  const { save } = useWorkspace();
+  const { save, drama } = useWorkspace();
   const status = SAVE_LABEL[save];
   return (
     <header className="border-border bg-chrome relative z-30 grid h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] items-center gap-3 border-b px-3 backdrop-blur-xl">
@@ -185,6 +185,14 @@ export function Topbar({
       </div>
       <StageTabs stage={stage} hints={hints} onChange={onStage} />
       <div className="flex items-center justify-end gap-0.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          render={<Link to={`/drama/${drama.id}/references`} />}
+        >
+          参考剧集
+        </Button>
         {/* 画风 / 比例 / 模型：这里只显示；点开进项目设置，模型在那里改 */}
         <ProjectSettings onSettings={onSettings} />
         <Button

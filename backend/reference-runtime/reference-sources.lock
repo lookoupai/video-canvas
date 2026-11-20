@@ -1,0 +1,3 @@
+# 已完成原片解析兼容验证的源码提交；归档哈希避免上游内容变化。
+rea-video @ https://codeload.github.com/JuneYaooo/rea-video/tar.gz/538eb3a757db94826cb90c4297279e50c5dd0f83 --hash=sha256:9a6bce21d77146f3de107738a4aee1773c669a7d969289067939d7bbc565beac
+videomd @ https://codeload.github.com/videomd/videomd/tar.gz/083722191572ec00710c6eb69a9351809ed443ce --hash=sha256:610be16a5ce36196360933107b5b37f43886ec99daf8df745bae9603f60a22e5

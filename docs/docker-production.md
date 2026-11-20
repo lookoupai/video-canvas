@@ -43,6 +43,28 @@ docker compose up -d
 
 > 从旧版升级：如果之前用 `APP_STORAGE_DRIVER=s3` 加 `APP_STORAGE_S3_*` 环境变量配置过对象存储（并且这些变量确实传进了后端容器），升级后首次启动会自动把它导入为一套名为「迁移自环境变量」的存储并设为默认，旧素材继续可用；导入后可以删掉这些环境变量。导入需要已配置 `APP_AI_SECRET_KEY`，否则后端会拒绝启动并说明原因。
 
+## 原片自动分析
+
+本 fork 的后端镜像已包含 Python 3.12、rea-video、videomd、FFmpeg 和 YuNet 检测模型。Python 依赖、分析器源码和检测模型在构建时安装并校验固定版本与哈希，模型及许可放在 `/opt/rea-video/models`，运行分析时不下载模型或写入用户缓存。重启、替换或升级容器不需要进入容器安装软件。现有 Compose 的 backend 与 plugin-runner 共用该镜像，发布流程会自动带上分析运行环境。
+
+使用本 fork 发布的新版本镜像时，按上面的 `docker compose pull` 与 `docker compose up -d` 启动即可。上游已发布的镜像或修改前的旧镜像不包含本次功能。本地验证生产镜像时，可以把构建产物标记为当前 Compose 配置所用的后端镜像名，再只重建相关服务：
+
+```bash
+# <你的后端镜像名:标签> 必须与当前 .env 的 IMAGE_OWNER / IMAGE_TAG 等一致
+docker build -f backend/Dockerfile -t <你的后端镜像名:标签> .
+docker compose up -d --no-deps backend plugin-runner
+docker compose exec backend rea-video --help
+```
+
+首次构建会下载 Python 依赖与固定提交的源码，镜像会比原来的 Go + FFmpeg 镜像大。依赖清单见 [backend/reference-runtime](../backend/reference-runtime/)；现有素材、日志和 socket 卷仍使用 UID 100 / GID 101，无需为本次更新改属主。当前功能执行离线切镜，人物与对白需要导入或校订，暂不启用 ASR / VLM。
+
+镜像的分析验收使用四镜样片，在无网络、只读根目录及默认非 root 用户下运行：
+
+```bash
+docker build --target reference-runtime -f backend/Dockerfile -t video-canvas-reference:test .
+(cd backend && TEST_REFERENCE_IMAGE=video-canvas-reference:test go test ./internal/tests/reference -run TestAnalyzer_DockerImage -count=1 -v)
+```
+
 ## 升级与数据库迁移
 
 数据库结构由后端镜像里内嵌的迁移文件决定。新版本的 backend 启动时会先执行还没执行过的迁移，成功后才开始提供服务；迁移失败时进程直接退出，日志里有具体的 SQL 错误，不会带着没迁移完的库运行。从接入迁移之前的老版本（v0.3.2 及更早）升级时，第一次启动会先把旧库补齐到基线结构，不需要手工处理。

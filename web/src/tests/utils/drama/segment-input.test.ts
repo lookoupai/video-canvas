@@ -209,6 +209,43 @@ describe("planSegmentInput：@ 解析与参考素材组装（契约 §13）", ()
 });
 
 describe("planSegmentInput：时长与校验", () => {
+  test("仿拍带入原镜参考，生成时长覆盖裁剪窗口并按模型步长向上取值", () => {
+    const caps = video();
+    caps.refs!.video = { on: true, max: 1, max_mb: 50 };
+    caps.params!.duration = {
+      type: "number",
+      label: "时长",
+      open: true,
+      min: 4,
+      max: 16,
+      step: 4,
+      default: 4,
+    };
+    const plan = planSegmentInput({
+      ...base,
+      caps,
+      seconds: 3,
+      prompt: "递出钥匙",
+      assets: [],
+      remake: { targetDurationMs: 2500, trimStartMs: 2500, referenceVideoAssetId: "4" },
+    });
+    expect(plan.op).toBe("omni");
+    expect(plan.input.videos).toEqual([4]);
+    expect(plan.input.duration).toBe(8);
+    expect(plan.errors).toEqual({});
+  });
+
+  test("仿拍窗口超过模型时长时阻止提交，不静默生成过短的视频", () => {
+    const plan = planSegmentInput({
+      ...base,
+      caps: video(),
+      prompt: "动作",
+      assets: [],
+      remake: { targetDurationMs: 14000, trimStartMs: 2000 },
+    });
+    expect(plan.errors.duration).toContain("裁剪");
+  });
+
   test("片段时长超出模型范围：按上限提交，并提示", () => {
     const plan = planSegmentInput({
       ...base,

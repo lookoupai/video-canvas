@@ -110,11 +110,16 @@ func (e *Extractor) composeTranscode(ctx context.Context, source, destination st
 		args = append(args, "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000")
 		audio = "1:a:0"
 	}
-	filter := fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30", first.width, first.height, first.width, first.height)
+	filter := composeVideoFilter(first)
 	args = append(args, "-map", "0:v:0", "-map", audio, "-vf", filter,
 		"-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
 		"-c:a", "aac", "-ar", "48000", "-ac", "2", "-af", "apad",
 		"-t", strconv.FormatFloat(info.duration, 'f', 6, 64), "-video_track_timescale", "90000", "-y", destination)
 	_, err := e.run(ctx, e.ffmpeg, args...)
 	return err
+}
+
+// composeVideoFilter 统一为首段的画布大小、方形像素和 30fps。
+func composeVideoFilter(first composeInfo) string {
+	return fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30", first.width, first.height, first.width, first.height)
 }

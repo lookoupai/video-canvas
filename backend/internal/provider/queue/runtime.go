@@ -63,9 +63,10 @@ type Repo interface {
 
 // Config 是运行时的依赖与参数。
 type Config struct {
-	DB           *sql.DB       // 与 GORM 共用的连接池：入队因此能进业务事务
-	ListenerPool *pgxpool.Pool // 只用来 LISTEN 新任务通知；为 nil 时退化成轮询（慢一些，不影响正确性）
-	Schema       string        // 数据库 schema，空表示连接默认的；测试用
+	DramaReference DramaReferenceHandler
+	DB             *sql.DB       // 与 GORM 共用的连接池：入队因此能进业务事务
+	ListenerPool   *pgxpool.Pool // 只用来 LISTEN 新任务通知；为 nil 时退化成轮询（慢一些，不影响正确性）
+	Schema         string        // 数据库 schema，空表示连接默认的；测试用
 
 	Store    provider.TaskStore
 	Handler  Handler
@@ -174,12 +175,17 @@ func New(cfg Config) (*Runtime, error) {
 			rc.Queues["drama"] = river.QueueConfig{MaxWorkers: hardCap}
 			registerDramaCleanup(rc, workers, cfg.Drama)
 		}
+		if cfg.DramaReference != nil {
+			AddWorker(workers, &dramaReferenceWorker{rt: rt})
+			rc.Queues["drama_reference"] = river.QueueConfig{MaxWorkers: hardCap}
+		}
 		if cfg.StepTrial != nil {
 			AddWorker(workers, &stepTrialWorker{rt: rt})
 			rc.Queues[stepTrialQueue] = river.QueueConfig{MaxWorkers: hardCap}
 		}
 		if cfg.Marketing != nil {
 			AddWorker(workers, &marketingWorker{rt: rt})
+			AddWorker(workers, &remakeComposeWorker{rt: rt})
 			rc.Queues[marketingQueue] = river.QueueConfig{MaxWorkers: hardCap}
 		}
 		if cfg.StoryboardSplit != nil {

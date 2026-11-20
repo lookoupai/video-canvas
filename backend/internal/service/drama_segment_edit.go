@@ -73,6 +73,9 @@ func (s *DramaSegmentService) Update(ctx context.Context, userID, sid uint64, re
 		if req.Seconds != nil {
 			row.Seconds = *req.Seconds
 		}
+		if err := editRemakeWindow(row, req); err != nil {
+			return err
+		}
 		return tx.SaveSegment(ctx, row, req.Revision)
 	})
 	if err != nil {

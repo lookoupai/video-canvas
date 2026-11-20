@@ -1,5 +1,6 @@
 import { submitConversationRecord } from "@/api/conversation";
 import { generateSegment } from "@/api/drama";
+import { generateRemakeShot } from "@/api/marketing/remake";
 import type { SegmentGenerateBody } from "@/api/drama/type";
 import type {
   SubmitRecordRequest,
@@ -67,6 +68,28 @@ export async function submitSegmentTask(sid: string, body: SegmentGenerateBody):
   const { task } = await submitWithRetry(
     (key) => generateSegment(sid, body, key),
     crypto.randomUUID(),
+  );
+  acceptTasks([task]);
+  return task;
+}
+
+/**
+ * 只提交一个成片镜的重拍，超时或断线时复用界面保存的同一操作键。
+ * @param planId 制作计划 ID
+ * @param shotId 计划内稳定镜号
+ * @param shotRevision 拍摄稿的镜头修订号
+ * @param key 由工作台为本次重拍生成，重传时不变
+ * @returns 单镜任务快照
+ */
+export async function submitRemakeShotTask(
+  planId: string,
+  shotId: number,
+  shotRevision: number,
+  key: string,
+): Promise<TaskView> {
+  const task = await submitWithRetry(
+    (retryKey) => generateRemakeShot(planId, shotId, shotRevision, retryKey),
+    key,
   );
   acceptTasks([task]);
   return task;

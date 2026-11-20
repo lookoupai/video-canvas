@@ -169,10 +169,21 @@ docker compose logs agent plugin-runner | grep '<编号>'
 | GET                 | /api/v1/admin/step-trials/:id                         | 【admin】试跑结果（前端轮询）：`status`（queued / running / succeeded / failed，failed = 调用本身出错）、`passed`（格式校验是否通过）、`errors` / `flags` / `preview` / `output`、耗时、token、积分 |
 | PUT                 | /api/v1/admin/steps/:key/binding                      | 【admin】设为生效 `{source, skill_name?, version?, trial_id}`，返回最新详情。依据的试跑必须是同环节、同候选、通过、24 小时内，否则 68013；技能或版本不可用 68014；绑定钉死版本，技能发新版本不跟随；写绑定历史和审计（`step.*`） |
 | GET                 | /api/v1/admin/formatters                              | 【admin】视频提示词格式化器只读列表 `[{key,name,description,sample}]`（seedance、h3、generic，代码维护） |
+| POST                | /api/v1/drama-reference-projects                     | 从参考剧集创建短剧与角色画布，携带用户级 request_key 支持重传 |
+| GET/POST/PUT/PATCH   | /api/v1/dramas/:id/references[/:reference]            | 参考集列表、追加、校订、历史修订和 order 排序，所有修改携带修订 |
+| POST                | /api/v1/dramas/:id/references/:reference/{import,analyze} | 上传拆片包或提交本地分析，按集后台处理；import 为 multipart package + revision，8 MB 上限 |
+| POST/PATCH          | /api/v1/dramas/:id/reference-roles[/:role]            | 跨集角色身份与本项目新角色节点对应，详见[参考剧集导入](../docs/仿拍二开/参考剧集导入.md) |
+| POST                | /api/v1/dramas/:id/references/:reference/adopt        | 按修订采用到分集；mode 为 follow 跟拍或 rewrite 原创改编；request_key 防重复；更新已有跟拍集须提供 target_episode_no、episode_revision、shot_ids |
+| GET                 | /api/v1/dramas/:id/reference-adoptions               | 不可变采用记录、当前目标集号与删除状态；角色和原稿后续变化不改已采用依据 |
 | GET/POST            | /api/v1/marketing/options、/marketing/quote           | 营销工作室：平台与角度预设 + `ref_video_max_seconds`（15）；写脚本预估 `{project_id?,has_ref,settings}` → `{credits,steps}`（无参考列 facts、create，有参考再加 reverse、follow；项目已有事实卡时 facts 为 0 仍列出）；无可用文本模型 68003 |
 | GET/POST/PUT/DELETE | /api/v1/marketing-projects[/:id]                      | 营销项目（id 十六进制）：POST 201 建项目并开第一轮（商品图 1–4 张、可选模特图和参考视频；素材无效 68002、视频模型不满足 68004、参考视频超 15 秒或模型体积上限 68005、积分不足 40001）；PUT `{title?,product?,revision}` 冲突 68009；DELETE 204，有写脚本中的轮次或进行中的出片任务 68010；不存在或不属于自己 68001 |
 | POST                | /api/v1/marketing-projects/:id/rounds                 | 新一轮 201 `RoundView`；不传 `model_asset_id` 沿用项目模特图，传了就替换；项目正在写脚本 68007 |
 | POST/PUT            | /api/v1/marketing-rounds/:id/{cancel,reverse,reverse/restore,refollow,render} | 取消（排队环节解冻，进行中的被中断）；改拆解（只认 action / dialogue / product_role / key_colors，revision 冲突 68009，不合法 68015，跟拍出片或重写中 68006）；恢复拆解原稿；按拆解重写跟拍版（只重跑 follow，原地更新同一份脚本，无拆解 68016）；全部出片 `{idempotency_key}` → `{round,skipped}` |
+| GET                 | /api/v1/marketing-scripts/:id/remake-preview          | 查询本人跟拍脚本的修订、原视频素材 ID、各成片镜时长与原镜毫秒区间，历史映射不完整时返回标记。创意脚本 10001，资源不存在或不属于本人 68001。 |
+| GET/POST            | /api/v1/marketing-scripts/:id/remake-plans             | 列出既有制作计划，或按脚本修订 `{revision}` 创建并打开当前计划。 |
+| GET/PATCH/PUT       | /api/v1/remake-plans/:id、/:id/shots/:shot、/:id/order | 读取计划与报价，按计划修订编辑分镜或选版，按稳定镜号重排。 |
+| POST                | /api/v1/remake-plans/:id/shots/:shot/generate、/:id/compose | 提交单镜任务或按选版清单合成，均需 `Idempotency-Key`，返回 202。 |
+| GET                 | /api/v1/remake-plans/:id/compositions                 | 查询历史合成与成片素材。[逐镜制作接口契约](../docs/design/营销工作室/接口契约.md#31-逐镜制作计划) |
 | POST                | /api/v1/marketing-step-runs/:id/retry                 | 重试失败的环节：新建运行记录，连同依赖它且未成功的后续环节一起重跑（重试事实卡等于整轮重试）；方法用当前绑定 |
 | PUT/POST/GET        | /api/v1/marketing-scripts/:id[/restore\|prompt\|render\|to-canvas] | 改旁白 `{narrations,revision}`（服务端重扫 flags，`flags[].shot` 从 0 起）、恢复原稿、提示词预览 `?video_model=`（超长 68008）、出片 `{idempotency_key,video_model?,params?}`（flags 非空 68006；以 `node_id=mkt:{脚本id}` 走生成任务，op=omni、`generate_audio=true`）、发到新画布 `{canvas_id}`（失败 68011）；出片进度走 `task.updated`，脚本与轮次变化推 `marketing.script` / `marketing.round` |
 | PUT/DELETE          | /api/v1/agent/runs/:rid/feedback                      | 对一轮运行打 👍/👎 `{rating: 1\|-1, reasons?: misread\|wrong_edit\|slow\|bad_output\|other（≤5，点赞时忽略）, comment?: ≤500 字}` → `{rating, reasons, comment}`，再调用就是改选；DELETE 取消（幂等）。运行还在跑或在等用户 409 / 60014；别人的运行 404 / 60012。会话里追加 `feedback.set` / `feedback.cleared` 事件 |

@@ -45,7 +45,10 @@ const (
 
 // MarketingRepo 是营销服务依赖的数据访问：事务原语加列表、统计和聚合查询，由 repository.MarketingRepository 实现。
 type MarketingRepo interface {
+	MarketingClipRepo
 	repository.MarketingTx
+	// RemakePreviewRow 在一次查询中读取本人跟拍脚本的分镜、映射和拆解依据。
+	RemakePreviewRow(ctx context.Context, userID, id uint64) (*repository.MarketingPreviewRow, error)
 	// WithTx 执行营销事务。
 	WithTx(ctx context.Context, fn func(repository.MarketingTx) error) error
 	ListProjects(ctx context.Context, userID uint64, keyword string, page, size int) ([]model.MarketingProject, int64, error)
@@ -90,41 +93,46 @@ type MarketingFrames interface {
 
 // MarketingDeps 是营销服务的依赖，全部以接口注入。
 type MarketingDeps struct {
-	Repo        MarketingRepo
-	Steps       *stepkit.Registry    // 环节注册表（已登记营销四环节）
-	Resolver    *stepkit.Resolver    // 取环节当前生效的方法
-	Caller      stepkit.Caller       // 调用文本模型
-	Models      provider.Registry    // 文本模型与视频模型
-	Assets      MarketingAssets      // 素材
-	Tasks       MarketingTaskCreator // 出片任务
-	Canvases    MarketingCanvasCreator
-	Frames      MarketingFrames  // 截帧与镜头切点；可为 nil
-	Credits     StepCreditPolicy // 新账户初始积分
-	Broadcaster ws.Broadcaster   // 为 nil 时不推送
-	Now         func() time.Time // 时钟，默认 time.Now
+	RemakeAssets   DramaComposeAssets
+	RemakeComposer MarketingRangeComposer
+	Repo           MarketingRepo
+	Steps          *stepkit.Registry    // 环节注册表（已登记营销四环节）
+	Resolver       *stepkit.Resolver    // 取环节当前生效的方法
+	Caller         stepkit.Caller       // 调用文本模型
+	Models         provider.Registry    // 文本模型与视频模型
+	Assets         MarketingAssets      // 素材
+	Tasks          MarketingTaskCreator // 出片任务
+	Canvases       MarketingCanvasCreator
+	Frames         MarketingFrames  // 截帧与镜头切点；可为 nil
+	Credits        StepCreditPolicy // 新账户初始积分
+	Broadcaster    ws.Broadcaster   // 为 nil 时不推送
+	Now            func() time.Time // 时钟，默认 time.Now
 }
 
 // MarketingService 是营销工作室业务：项目与轮次、环节编排（River job）、拆解与脚本编辑、出片、发到画布。
 type MarketingService struct {
-	repo     MarketingRepo
-	steps    *stepkit.Registry
-	resolver *stepkit.Resolver
-	runner   *stepkit.Runner
-	caller   stepkit.Caller // 出片前转写提示词直接调文本模型（不走环节）
-	models   provider.Registry
-	assets   MarketingAssets
-	tasks    MarketingTaskCreator
-	canvases MarketingCanvasCreator
-	frames   MarketingFrames
-	credits  StepCreditPolicy
-	bc       ws.Broadcaster
-	now      func() time.Time
-	adapting sync.Map // 进行中的转写：脚本 id + 格式，同一份同时只转一次
+	remakeAssets   DramaComposeAssets
+	remakeComposer MarketingRangeComposer
+	repo           MarketingRepo
+	steps          *stepkit.Registry
+	resolver       *stepkit.Resolver
+	runner         *stepkit.Runner
+	caller         stepkit.Caller // 出片前转写提示词直接调文本模型（不走环节）
+	models         provider.Registry
+	assets         MarketingAssets
+	tasks          MarketingTaskCreator
+	canvases       MarketingCanvasCreator
+	frames         MarketingFrames
+	credits        StepCreditPolicy
+	bc             ws.Broadcaster
+	now            func() time.Time
+	adapting       sync.Map // 进行中的转写：脚本 id + 格式，同一份同时只转一次
 }
 
 // NewMarketingService 创建营销服务；Broadcaster 为 nil 时换成空实现。
 func NewMarketingService(d MarketingDeps) *MarketingService {
 	s := &MarketingService{repo: d.Repo, steps: d.Steps, resolver: d.Resolver, runner: stepkit.NewRunner(d.Caller), caller: d.Caller, models: d.Models,
+		remakeAssets: d.RemakeAssets, remakeComposer: d.RemakeComposer,
 		assets: d.Assets, tasks: d.Tasks, canvases: d.Canvases, frames: d.Frames, credits: d.Credits, bc: d.Broadcaster, now: d.Now}
 	if s.bc == nil {
 		s.bc = ws.NopBroadcaster{}

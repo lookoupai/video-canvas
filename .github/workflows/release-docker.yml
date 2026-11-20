@@ -97,6 +97,12 @@ jobs:
         working-directory: backend
         run: go test ./...
 
+      - name: 验证镜像内原片分析器
+        working-directory: backend
+        run: |
+          docker build --target reference-runtime -f Dockerfile -t video-canvas-reference:test ..
+          TEST_REFERENCE_IMAGE=video-canvas-reference:test go test ./internal/tests/reference -run TestAnalyzer_DockerImage -count=1 -v
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

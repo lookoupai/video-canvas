@@ -12,6 +12,7 @@ import (
 
 // Handlers 汇总所有 handler，新增模块时在这里加字段并注册路由。
 type Handlers struct {
+	DramaReference *handler.DramaReferenceHandler
 	Health         *handler.HealthHandler
 	User           *handler.UserHandler
 	Me             *handler.MeHandler // 个人中心：资料、头像、改密码、统计、热力图、积分流水
@@ -62,6 +63,8 @@ type Handlers struct {
 	AdminPayment   *handler.PaymentAdminHandler        // 后台支付管理：全局设置、渠道、商品、订单
 	AdminRole      middleware.RoleLookup               // 管理接口的角色查询（与 UserState 同一套：Redis 缓存 + 变更时主动失效）
 	UserState      middleware.UserStateLookup          // 登录后分组的用户状态查询（停用 / token_version）
+
+	MarketingRemake *handler.MarketingRemakeHandler // 营销逐镜重拍
 }
 
 func New(mode, jwtSecret string, h Handlers) *gin.Engine {
@@ -211,6 +214,16 @@ func New(mode, jwtSecret string, h Handlers) *gin.Engine {
 		mktRounds.POST("/:id/render", h.Marketing.RenderRound)
 		auth.POST("/marketing-step-runs/:id/retry", h.Marketing.RetryStep)
 		mktScripts := auth.Group("/marketing-scripts")
+		mktScripts.GET("/:id/remake-preview", h.Marketing.RemakePreview)
+		mktScripts.GET("/:id/remake-plans", h.MarketingRemake.ListPlans)
+		mktScripts.POST("/:id/remake-plans", h.MarketingRemake.CreatePlan)
+		remakePlans := auth.Group("/remake-plans/:id")
+		remakePlans.GET("", h.MarketingRemake.GetPlan)
+		remakePlans.PATCH("/shots/:shot", h.MarketingRemake.UpdateShot)
+		remakePlans.PUT("/order", h.MarketingRemake.OrderShots)
+		remakePlans.POST("/shots/:shot/generate", h.MarketingRemake.GenerateShot)
+		remakePlans.POST("/compose", h.MarketingRemake.Compose)
+		remakePlans.GET("/compositions", h.MarketingRemake.Compositions)
 		mktScripts.PUT("/:id", h.Marketing.UpdateScript)
 		mktScripts.POST("/:id/restore", h.Marketing.RestoreScript)
 		mktScripts.GET("/:id/prompt", h.Marketing.Prompt)
@@ -232,6 +245,18 @@ func New(mode, jwtSecret string, h Handlers) *gin.Engine {
 		auth.DELETE("/drama-prompts/:id", h.Drama.DeletePrompt)
 		auth.GET("/drama-skills", h.Drama.Skills)
 		dramas := auth.Group("/dramas")
+		auth.POST("/drama-reference-projects", h.DramaReference.CreateProject)
+		dramas.GET("/:id/references", h.DramaReference.List)
+		dramas.POST("/:id/references", h.DramaReference.Add)
+		dramas.PUT("/:id/references/order", h.DramaReference.Order)
+		dramas.GET("/:id/references/:reference", h.DramaReference.Get)
+		dramas.PATCH("/:id/references/:reference", h.DramaReference.Update)
+		dramas.POST("/:id/references/:reference/import", h.DramaReference.Import)
+		dramas.POST("/:id/references/:reference/analyze", h.DramaReference.Analyze)
+		dramas.POST("/:id/references/:reference/adopt", h.DramaReference.Adopt)
+		dramas.GET("/:id/reference-adoptions", h.DramaReference.Adoptions)
+		dramas.POST("/:id/reference-roles", h.DramaReference.CreateRole)
+		dramas.PATCH("/:id/reference-roles/:role", h.DramaReference.UpdateRole)
 		dramas.GET("", h.Drama.List)
 		dramas.POST("", h.Drama.Create)
 		dramas.GET("/:id", h.Drama.Get)

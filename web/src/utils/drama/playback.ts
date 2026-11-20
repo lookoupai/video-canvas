@@ -1,6 +1,6 @@
 import type { Segment } from "@/api/drama/type";
 
-import { clipWidth, playableTake, sortSegments } from "./segments";
+import { clipWidth, playableTake, segmentSeconds, sortSegments } from "./segments";
 
 /** 片段条上相邻两格的间距（像素），和 clip-bar 里 Reorder.Group 的 gap-1 一致 */
 export const CLIP_GAP = 4;
@@ -17,6 +17,12 @@ export type PlayItem = {
   /** 在整条连播时间轴上的起止（秒） */
   start: number;
   end: number;
+  /** 本素材实际播放起点（秒），与连播时间轴独立。 */
+  mediaStart: number;
+  /** 本素材实际播放终点（秒）。 */
+  mediaEnd: number;
+  /** 跟拍窗口需要在素材结束前切到下一镜。 */
+  trimmed: boolean;
 };
 
 /**
@@ -30,7 +36,8 @@ export function buildPlaylist(segments: readonly Segment[]): PlayItem[] {
     const take = playableTake(segment);
     if (!take?.asset) continue;
     const real = take.asset.durationMs ? take.asset.durationMs / 1000 : 0;
-    const seconds = real > 0 ? real : segment.seconds;
+    const seconds = segment.remake ? segmentSeconds(segment) : real > 0 ? real : segment.seconds;
+    const mediaStart = (segment.remake?.trimStartMs ?? 0) / 1000;
     items.push({
       id: segment.id,
       seq: segment.seq,
@@ -38,6 +45,9 @@ export function buildPlaylist(segments: readonly Segment[]): PlayItem[] {
       seconds,
       start: cursor,
       end: cursor + seconds,
+      mediaStart,
+      mediaEnd: mediaStart + seconds,
+      trimmed: !!segment.remake,
     });
     cursor += seconds;
   }
@@ -78,24 +88,24 @@ export const firstIndexFrom = (playlist: readonly PlayItem[], segment: Pick<Segm
   playlist.findIndex((item) => item.seq >= segment.seq);
 
 /** 片段条上每个片段的起点（像素）：前面各片段的宽度加间距，没有视频的片段也占位 */
-export function clipOffsets(segments: readonly Pick<Segment, "seconds">[]): number[] {
+export function clipOffsets(segments: readonly Pick<Segment, "seconds" | "remake">[]): number[] {
   const offsets: number[] = [];
   let x = 0;
   for (const segment of segments) {
     offsets.push(x);
-    x += clipWidth(segment.seconds) + CLIP_GAP;
+    x += clipWidth(segmentSeconds(segment)) + CLIP_GAP;
   }
   return offsets;
 }
 
 /** 播放头在片段条上的位置：片段起点 + 进度（0–1）× 该片段的宽度；找不到片段为 0 */
 export function playheadX(
-  segments: readonly Pick<Segment, "id" | "seconds">[],
+  segments: readonly Pick<Segment, "id" | "seconds" | "remake">[],
   segmentId: string,
   progress: number,
 ): number {
   const index = segments.findIndex((segment) => segment.id === segmentId);
   if (index < 0) return 0;
   const ratio = Math.min(Math.max(progress, 0), 1);
-  return clipOffsets(segments)[index] + clipWidth(segments[index].seconds) * ratio;
+  return clipOffsets(segments)[index] + clipWidth(segmentSeconds(segments[index])) * ratio;
 }

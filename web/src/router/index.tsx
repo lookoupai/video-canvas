@@ -31,6 +31,7 @@ import Conversation from "@/pages/conversation";
 import DramaList from "@/pages/drama";
 import DramaStudio from "@/pages/drama/studio";
 import DramaWorkspace from "@/pages/drama/workspace";
+import DramaReferencePage from "@/pages/drama/references";
 import Home from "@/pages/home";
 import HomeLayout from "@/pages/home/layout";
 import Login from "@/pages/login";
@@ -123,6 +124,10 @@ export const router = createBrowserRouter([
             element: <Canvas />,
           },
           /** 短剧工作台：全屏，与 /canvas/:id 同层级，不带首页侧栏 */
+          {
+            path: "drama/:id/references",
+            element: <DramaReferencePage />,
+          },
           {
             path: "drama/:id",
             element: <DramaWorkspace />,

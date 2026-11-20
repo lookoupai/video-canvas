@@ -24,6 +24,8 @@ const marketingRoundTimeout = 30 * time.Minute
 
 // MarketingHandler 执行一轮营销写脚本，业务终态由服务持久化。
 type MarketingHandler interface {
+	// HandleRemakeComposition 执行固定选版清单的裁剪与拼接。
+	HandleRemakeComposition(ctx context.Context, userID, planID, id uint64, attempt int) error
 	// HandleMarketingRound 执行轮次里排队中的环节；业务失败由服务落成环节失败并返回 nil，只有基础设施错误才返回 error（队列重试）。
 	HandleMarketingRound(ctx context.Context, roundID uint64) error
 }

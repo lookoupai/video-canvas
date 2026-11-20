@@ -70,6 +70,12 @@ func All() []any {
 		&DramaEpisode{},
 		&DramaJob{},
 		&DramaSegment{},
+		&DramaReferenceState{},
+		&DramaReferenceEpisode{},
+		&DramaReferenceRevision{},
+		&DramaReferenceRole{},
+		&DramaReferenceAdoption{},
+		&DramaSegmentGenerationIntent{},
 		&PaymentChannel{},
 		&RechargeProduct{},
 		&PaymentOrder{},
@@ -81,6 +87,10 @@ func All() []any {
 		&MarketingRound{},
 		&MarketingStepRun{},
 		&MarketingScript{},
+		&MarketingRemakePlan{},
+		&MarketingRemakeClip{},
+		&MarketingRemakeIntent{},
+		&MarketingRemakeComposition{},
 		&StoryboardSplitJob{},
 	}
 }

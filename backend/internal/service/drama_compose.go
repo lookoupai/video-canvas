@@ -44,10 +44,11 @@ type DramaComposeAssets interface {
 
 // dramaComposeInput 固定提交时的采用、跳过列表与片段版本，重试不能改用后来选中的 take。
 type dramaComposeInput struct {
-	EpisodeID      uint64   `json:"episode_id"`
-	SegmentVersion int64    `json:"segment_version"`
-	AssetIDs       []uint64 `json:"asset_ids"`
-	SkippedSeqs    []int    `json:"skipped_seqs"`
+	EpisodeID      uint64              `json:"episode_id"`
+	SegmentVersion int64               `json:"segment_version"`
+	AssetIDs       []uint64            `json:"asset_ids"`
+	SkippedSeqs    []int               `json:"skipped_seqs"`
+	Ranges         []dramaComposeRange `json:"ranges,omitempty"`
 }
 
 // estimateCompose 与提交使用同一项目锁和片段校验，完全不解析模型或访问积分账户。
@@ -105,9 +106,17 @@ func composeInput(ctx context.Context, tx repository.DramaTx, p *model.DramaProj
 			return nil, err
 		}
 		input.AssetIDs = append(input.AssetIDs, id)
+		window, err := segmentComposeRange(row.Remake)
+		if err != nil {
+			return nil, err
+		}
+		input.Ranges = append(input.Ranges, window)
 	}
 	if len(input.AssetIDs) == 0 {
 		return nil, errcode.ErrDramaNothingToCompose
+	}
+	if !hasDramaComposeRanges(input.Ranges) {
+		input.Ranges = nil
 	}
 	return input, nil
 }
@@ -169,7 +178,7 @@ func (s *DramaService) renderCompose(ctx context.Context, job *model.DramaJob) (
 	paths := make([]string, 0, len(input.AssetIDs))
 	for i, id := range input.AssetIDs {
 		path := filepath.Join(dir, fmt.Sprintf("input-%d.mp4", i))
-		if err := s.downloadCompose(ctx, job.UserID, id, path); err != nil {
+		if err := downloadComposeVideo(ctx, s.assets, job.UserID, id, path); err != nil {
 			return nil, nil, withCause(errcode.ErrInternal.WithMsg("下载失败：无法读取采用视频"), fmt.Errorf("素材 %d：%w", id, err), "compose_download")
 		}
 		paths = append(paths, path)
@@ -178,7 +187,7 @@ func (s *DramaService) renderCompose(ctx context.Context, job *model.DramaJob) (
 		}
 	}
 	dst := filepath.Join(dir, "final.mp4")
-	if err := s.compose.Compose(ctx, paths, dst); err != nil {
+	if err := s.composeDramaPaths(ctx, job.UserID, &input, paths, dst); err != nil {
 		return nil, nil, withCause(errcode.ErrInternal.WithMsg("转码失败：无法合成视频"), err, "compose_transcode")
 	}
 	if err := s.dramaProgress(ctx, job, 80); err != nil {
@@ -191,9 +200,9 @@ func (s *DramaService) renderCompose(ctx context.Context, job *model.DramaJob) (
 	return asset, &input, nil
 }
 
-// downloadCompose 从用户素材存储下载到临时目录，沿用素材转存的大小和取消约束。
-func (s *DramaService) downloadCompose(ctx context.Context, userID, assetID uint64, path string) error {
-	file, err := s.assets.Open(ctx, userID, assetID)
+// downloadComposeVideo 从用户素材存储下载到临时目录，沿用素材转存的大小和取消约束。
+func downloadComposeVideo(ctx context.Context, assets DramaComposeAssets, userID, assetID uint64, path string) error {
+	file, err := assets.Open(ctx, userID, assetID)
 	if err != nil {
 		return err
 	}

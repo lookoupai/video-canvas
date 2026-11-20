@@ -69,7 +69,8 @@ func mktDB(t *testing.T) *gorm.DB {
 		}
 	})
 	if err := db.AutoMigrate(&model.GenerationTask{}, &model.GenerationTaskEvent{}, &model.UserCredit{}, &model.CreditLedger{}, &model.Asset{},
-		&model.MarketingProject{}, &model.MarketingRound{}, &model.MarketingStepRun{}, &model.MarketingScript{}); err != nil {
+		&model.MarketingProject{}, &model.MarketingRound{}, &model.MarketingStepRun{}, &model.MarketingScript{},
+		&model.MarketingRemakePlan{}, &model.MarketingRemakeClip{}, &model.MarketingRemakeIntent{}, &model.MarketingRemakeComposition{}); err != nil {
 		t.Fatalf("迁移失败：%v", err)
 	}
 	return db

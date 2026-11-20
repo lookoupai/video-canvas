@@ -19,6 +19,9 @@ const marketingBarLimit = 8
 // MarketingTx 是营销工作室业务事务里用到的数据库原语：项目、轮次、环节运行、脚本、出片任务和积分。
 // 所有读写都带 user_id，别人的资源和不存在一样返回 ErrNotFound。
 type MarketingTx interface {
+	MarketingGenerateTx
+	MarketingPlanTx
+	MarketingComposeTx
 	// InsertProject 插入项目。
 	InsertProject(ctx context.Context, p *model.MarketingProject) error
 	// Project 按用户读取存活项目，lock 为真时加行锁（串行化同一项目的写请求）。
@@ -81,6 +84,8 @@ type MarketingTx interface {
 
 // MarketingEnqueuer 把写脚本 job 放进当前业务事务（真实实现是 provider/queue 的 Runtime）。
 type MarketingEnqueuer interface {
+	// EnqueueRemakeCompositionTx 将指定合成快照的本次尝试与计划事务一起提交。
+	EnqueueRemakeCompositionTx(ctx context.Context, tx *sql.Tx, userID, planID, id uint64, attempt int) error
 	// EnqueueMarketingRoundTx 在 tx 所在事务里为轮次入队。
 	EnqueueMarketingRoundTx(ctx context.Context, tx *sql.Tx, roundID uint64) error
 }

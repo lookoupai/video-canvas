@@ -36,6 +36,8 @@ scripts/start-docker.bat --detach
 
 启动脚本会在每次启动时清理悬空镜像。后端和前端容器启动时分别执行 `go mod download`、`bun install --frozen-lockfile`，所以修改 `go.mod`、`go.sum`、`package.json` 或 `bun.lock` 后，重新运行脚本即可同步新增依赖；依赖缓存卷仍会保留，不需要每次重新下载全部依赖。
 
+后端开发镜像也内置原片分析所需的 Python、rea-video、videomd、FFmpeg 和固定检测模型，不需要进入容器手工安装。首次接入或修改 `backend/reference-runtime/` 的依赖清单后，需要重新构建镜像：使用上面的启动脚本（不加 `--no-build`），或执行 `docker compose -f docker-compose.dev.yml up -d --build backend`。当前分析执行本地切镜，人物与对白仍需导入或校订，详见[参考剧集导入](仿拍二开/参考剧集导入.md#本地分析器)。
+
 ## 常用命令
 
 ```bash

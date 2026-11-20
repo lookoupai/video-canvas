@@ -198,7 +198,7 @@ func (r *DramaRepository) SaveEpisode(ctx context.Context, e *model.DramaEpisode
 	if e.ID == 0 {
 		return r.db.WithContext(ctx).Create(e).Error
 	}
-	res := r.db.WithContext(ctx).Model(&model.DramaEpisode{}).Where("user_id = ? AND drama_id = ? AND id = ? AND revision = ?", e.UserID, e.DramaID, e.ID, revision).Updates(map[string]any{"title": e.Title, "synopsis": e.Synopsis, "hook": e.Hook, "cliffhanger": e.Cliffhanger, "unit_from": e.UnitFrom, "unit_to": e.UnitTo, "script_md": e.ScriptMD, "script_status": e.ScriptStatus, "storyboard_status": e.StoryboardStatus, "locked_at": e.LockedAt, "final_asset_id": e.FinalAssetID, "final_segment_version": e.FinalSegmentVersion, "revision": gorm.Expr("revision + 1"), "updated_at": time.Now()})
+	res := r.db.WithContext(ctx).Model(&model.DramaEpisode{}).Where("user_id = ? AND drama_id = ? AND id = ? AND revision = ?", e.UserID, e.DramaID, e.ID, revision).Updates(map[string]any{"title": e.Title, "synopsis": e.Synopsis, "hook": e.Hook, "cliffhanger": e.Cliffhanger, "unit_from": e.UnitFrom, "unit_to": e.UnitTo, "script_md": e.ScriptMD, "reference_basis": segmentAdaptations(e.ReferenceBasis), "script_status": e.ScriptStatus, "storyboard_status": e.StoryboardStatus, "locked_at": e.LockedAt, "final_asset_id": e.FinalAssetID, "final_segment_version": e.FinalSegmentVersion, "revision": gorm.Expr("revision + 1"), "updated_at": time.Now()})
 	if res.Error != nil {
 		return res.Error
 	}
