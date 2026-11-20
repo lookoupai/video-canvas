@@ -331,6 +331,9 @@ func (s *DramaService) commitDrama(ctx context.Context, run *dramaRun, result *d
 	s.publish(ctx, completed)
 	s.publish(ctx, following)
 	s.publishDrama(ctx, run.job.UserID, run.job.DramaID)
+	if finished && run.job.Step == "storyboard" {
+		s.syncBoardNodes(ctx, run.job)
+	}
 	if failedCode != 0 && completed.Status == "failed" {
 		logger.RunOf(ctx).End(logger.StatusFailed, zap.Int("error_code", failedCode), zap.String("error_message", failedMessage),
 			zap.String("error_type", dramaErrorType(result.failure)), zap.Int("credits", completed.Credits), zap.Int("refunded", completed.FrozenCredits-completed.Credits))

@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { useRemoteModels } from "@/hooks/use-models";
 import { useModelSwitchStore } from "@/store/drama-model-switch";
+import { pickBoardModel } from "@/utils/drama/board-input";
 import { PROMPT_STEPS, sameChoice } from "@/utils/drama/prompts";
 import { promptsToChoices, type StartPrompts } from "@/utils/drama/start-settings";
 
@@ -57,11 +58,11 @@ const IMAGE_MODEL_SLOTS = [
   { key: "prop", prefix: "物品" },
 ] as const;
 
-/** 改了模型的资产类型 */
+/** 改了模型的资产类型（故事板的模型不算资产类型，不在内） */
 export function changedImageModels(
   saved: DramaImageModels,
   value: DramaImageModels,
-): (keyof DramaImageModels)[] {
+): (typeof IMAGE_MODEL_SLOTS)[number]["key"][] {
   return IMAGE_MODEL_SLOTS.map(({ key }) => key).filter((key) => saved[key] !== value[key]);
 }
 
@@ -76,9 +77,9 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 }
 
 /**
- * 项目设置的内容（弹窗正文，每次打开重新挂载）：Agent 模型 + 资产图片模型三行 + 提示词四行，同开拍设置；
+ * 项目设置的内容（弹窗正文，每次打开重新挂载）：Agent 模型 + 资产图片模型三行 + 故事板图片模型 + 提示词四行，同开拍设置；
  * 新建 / 编辑「我的提示词」时整块换成编辑器。
- * 点「完成」才保存（PATCH text_model / image_models / prompts），只影响之后发起的任务；
+ * 点「完成」才保存（PATCH text_model / image_models / prompts）；故事板的模型不会让资产卡换模型，只影响之后发起的任务；
  * 换了图片模型的类型，资产区里还没生成的卡跟着换成新模型。
  */
 export function ProjectSettingsBody({
@@ -99,10 +100,11 @@ export function ProjectSettingsBody({
   const [saving, setSaving] = useState(false);
   const changed = changedSteps(drama.promptSettings, value);
   const changedModels = changedImageModels(drama.imageModels, imageModels);
+  const boardChanged = imageModels.board !== drama.imageModels.board;
   const textChanged = textModel !== drama.textModel;
 
   const done = async () => {
-    if (changed.length === 0 && changedModels.length === 0 && !textChanged) {
+    if (changed.length === 0 && changedModels.length === 0 && !boardChanged && !textChanged) {
       onClose();
       return;
     }
@@ -110,7 +112,7 @@ export function ProjectSettingsBody({
     try {
       await patch({
         ...(changed.length > 0 ? { prompts: promptsToChoices(value) } : {}),
-        ...(changedModels.length > 0 ? { imageModels } : {}),
+        ...(changedModels.length > 0 || boardChanged ? { imageModels } : {}),
         ...(textChanged ? { textModel } : {}),
       });
       if (changedModels.length > 0) {
@@ -179,6 +181,21 @@ export function ProjectSettingsBody({
                 defaultLabel="跟随默认"
               />
             ))}
+          </div>
+        </Section>
+        <Section label="故事板">
+          <div className="grid px-3">
+            <ModelMenu
+              variant="field"
+              prefix="故事板"
+              kindName="图片"
+              models={imageRemote.models}
+              loading={imageRemote.status === "idle" || imageRemote.status === "loading"}
+              model={imageRemote.models.find((m) => m.key === imageModels.board)}
+              fallback={pickBoardModel(imageRemote.models, "", imageModels.scene)}
+              onPick={(picked) => setImageModels((prev) => ({ ...prev, board: picked }))}
+              defaultLabel="跟随场景图片"
+            />
           </div>
         </Section>
         <Section label="提示词">

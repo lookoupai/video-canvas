@@ -223,6 +223,14 @@ docker compose logs agent plugin-runner | grep '<编号>'
 | GET                 | /api/v1/asset-library/items                           | 资产库条目：`?folder_id=root|<id>|all&kind=&q=&cursor=&limit=`，加入时间倒序，返回 `{items:[{id,asset,folder_id,created_at}],next_cursor}`；文件夹不存在 64004 |
 | POST                | /api/v1/asset-library/items                           | 加入资产库 `{asset_id, folder_id?}`：新增 **201**，素材已在库里 **200** 并返回现有归属；素材不属于自己 40007，文件夹不存在 64004 |
 | PATCH/DELETE        | /api/v1/asset-library/items/:id                       | 移动 `{folder_id: id|null}`（返回条目）/ 移出资产库（不动素材）；不存在或不属于自己 64005 |
+| GET                 | /api/v1/virtual-humans                                | 真人库列表 `{items:[{id,name,status,images:[{id,asset,status,error}],created_at}],filing_ready}`（不分页）；`?refresh=1` 先向方舟刷新审核中的图片（同一用户 3 秒一次）；status 为 pending / active / failed |
+| POST                | /api/v1/virtual-humans                                | 用一张图片新建真人并提交方舟备案 `{name, asset_id}`，返回 **201**；名称 1–30 字（69003），只能是自己在对象存储里的图片（69003 / 69010），已在真人库里 69004，未配置虚拟人像库 69007，每人最多 200 个（69012） |
+| PATCH/DELETE        | /api/v1/virtual-humans/:id                            | 改名 `{name}` / 移除真人并删除方舟侧素材；图片被角色卡使用时 **409** 69006，不存在 69001 |
+| GET                 | /api/v1/virtual-humans/:id/references                 | 真人的图片被哪些角色卡使用 `{items:[{image_id,canvas_id,canvas_title,node_id,node_name}]}` |
+| POST                | /api/v1/virtual-humans/:id/images                     | 加一张图片并提交备案 `{asset_id}`，返回 **201**；每个真人最多 5 张（69005） |
+| PUT                 | /api/v1/virtual-humans/:id/cover                      | 设封面 `{image_id}`（排到第一张）；图片不属于该真人 69002 |
+| POST                | /api/v1/virtual-human-images/:id/retry                | 重新提交备案失败的图片；不是失败状态 69011 |
+| DELETE              | /api/v1/virtual-human-images/:id                      | 移除一张图片并删除方舟侧素材；被角色卡使用 69006，真人只剩这一张 69009，方舟删除失败 69008 |
 | GET                 | /api/v1/drama-styles                                  | 内置题材与画风目录 `{genres:[{key,name}](12), styles:[{key,name,prompt}](11)}` |
 | GET/POST | /api/v1/dramas | 用户短剧列表 / JSON 建剧 `{source_token,source_kind,range_end?,ratio,genre?,style_key,style_custom?,episode_seconds?,text_model?,prompts?}`；原文先预检，返回 201；自动研读并按批规划，剧本型直接按原文切集。模型上下文须至少 128k。 |
 | GET/PATCH/DELETE    | /api/v1/dramas/:id                                    | 详情（含 `episodes`、`active_jobs`、`phase/plan_cursor/range_end/pause_code` 和不含正文的 `prompt_settings`）/ 改 `{revision, title?, genre?, style_key?, style_custom?, ratio?, text_model?, outline_md?, characters_md?, prompts?}`（revision 冲突 409 / 30002）/ 软删，连带短剧画布（角色数据内嵌在画布里，随画布一起软删），返回 **204**；不存在或不属于自己 67001 |
@@ -275,6 +283,7 @@ docker compose logs agent plugin-runner | grep '<编号>'
 | PUT      | /api/v1/admin/ai/channels/:key                  | super_admin | 更新渠道（字段可选；`headers` 传了就整体替换） |
 | PUT      | /api/v1/admin/ai/channels/:key/secret           | super_admin | 设置渠道 API Key（只写） |
 | PUT      | /api/v1/admin/ai/channels/:key/secret-key       | super_admin | 设置 / 清除渠道 Secret Key（可选的第二凭证，空串清除，只写） |
+| PUT      | /api/v1/admin/ai/channels/:key/filing-secret    | super_admin | 设置渠道虚拟人像库的 `{access_key, secret_key}`（火山引擎 / BytePlus IAM 凭证，两项必填，只写）；配置本身随 `PUT /channels/:key` 的 `filing:{enabled,group_id,project_name}` 保存，全平台只能一个渠道启用 |
 | POST     | /api/v1/admin/ai/channels/:key/pull-models      | admin       | 向上游拉取模型清单（`GET {base_url}/v1/models`，不落库）→ `{models:[{id,exists}],total}` |
 | POST     | /api/v1/admin/ai/channels/:key/models/import    | admin       | 把所选上游模型导入成“待配置”模型（未启用、没选协议），已有的跳过 |
 | PUT      | /api/v1/admin/ai/channels/:key/models/sort      | admin       | 调整渠道内模型顺序：`{keys}` 必须是该渠道全部模型 |

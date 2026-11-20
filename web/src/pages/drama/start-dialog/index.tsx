@@ -39,6 +39,8 @@ import {
   CUSTOM_STYLE_KEY,
   DEFAULT_EPISODE_SECONDS,
   DEFAULT_STYLE_KEY,
+  MAX_EPISODE_SECONDS,
+  MIN_EPISODE_SECONDS,
 } from "@/utils/drama/options";
 import {
   DEFAULT_START_RATIO,
@@ -281,6 +283,7 @@ export function StartBody({
 }) {
   const { genres, styles } = useDramaStyles();
   const [form, setForm] = useState<StartForm>(() => initialForm(pre));
+  const [secondsDraft, setSecondsDraft] = useState(() => form.seconds);
   const [editor, setEditor] = useState<{ step: PromptStep; item: MyPrompt | null } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -544,17 +547,19 @@ export function StartBody({
                 disabled={lock.locked}
                 title={lock.locked ? "剧本按原分集" : undefined}
                 label={lock.label ?? `${form.seconds}s/集${script ? "（参考）" : ""}`}
-                width="w-44"
+                width="w-[220px]"
+                onOpen={() => setSecondsDraft(form.seconds)}
+                onClose={() => {
+                  if (
+                    Number.isInteger(secondsDraft) &&
+                    secondsDraft >= MIN_EPISODE_SECONDS &&
+                    secondsDraft <= MAX_EPISODE_SECONDS
+                  ) {
+                    patch({ seconds: secondsDraft });
+                  }
+                }}
               >
-                {(close) => (
-                  <SecondsList
-                    seconds={form.seconds}
-                    onSeconds={(seconds) => {
-                      patch({ seconds });
-                      close();
-                    }}
-                  />
-                )}
+                {() => <SecondsList seconds={secondsDraft} onSeconds={setSecondsDraft} />}
               </ChipPopover>
             </div>
           </Field>
@@ -703,16 +708,24 @@ function EstimateLine({ state }: { state: ReturnType<typeof useSourceEstimate> }
   }
   if (!est) return null;
   return (
-    <span
+    <div
       className={cn(
-        "text-muted-foreground text-[12.5px] tabular-nums transition-opacity",
+        "text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 tabular-nums transition-opacity",
         state.status === "loading" && "opacity-50",
       )}
     >
-      预计约 {episodesLabel(est)} 集 · 研读与规划约{" "}
-      <span className="text-credit">{est.credits.toLocaleString("en-US")}</span> 积分 · 约{" "}
-      {durationLabel(est.minutes)}
-    </span>
+      <span className="whitespace-nowrap">预计约 {episodesLabel(est)} 集</span>
+      <span aria-hidden="true" className="text-muted-foreground/50">
+        ·
+      </span>
+      <span className="whitespace-nowrap">
+        研读与规划约 <span className="text-credit">{est.credits.toLocaleString("en-US")}</span> 积分
+      </span>
+      <span aria-hidden="true" className="text-muted-foreground/50">
+        ·
+      </span>
+      <span className="whitespace-nowrap">约 {durationLabel(est.minutes)}</span>
+    </div>
   );
 }
 

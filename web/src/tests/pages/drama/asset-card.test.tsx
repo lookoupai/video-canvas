@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { CanvasNodeData } from "@/types/canvas";
 import { AddAssetCard, AssetCard } from "@/pages/drama/workspace/asset-card";
 import type { AssetItem } from "@/utils/drama/assets";
+import type { VirtualHumanDto } from "@/api/virtual-human/type";
 
 const item = (overrides: Partial<AssetItem> = {}): AssetItem => ({
   id: "n1",
@@ -18,7 +19,11 @@ const item = (overrides: Partial<AssetItem> = {}): AssetItem => ({
 });
 
 const noop = () => {};
-const card = (value: AssetItem, multi = false) =>
+const card = (
+  value: AssetItem,
+  multi = false,
+  enroll?: { human: VirtualHumanDto | null; onEnroll: () => void },
+) =>
   renderToStaticMarkup(
     <AssetCard
       item={value}
@@ -29,6 +34,7 @@ const card = (value: AssetItem, multi = false) =>
       onLocate={noop}
       onUpload={noop}
       onPickLibrary={noop}
+      enroll={enroll}
     />,
   );
 
@@ -180,5 +186,33 @@ describe("AddAssetCard：新建卡", () => {
   test("其他类型写「新建某类」", () => {
     expect(add("scene")).toContain("新建场景");
     expect(add("image")).toContain("新建图片");
+  });
+});
+
+describe("AssetCard：加入真人库", () => {
+  const done = item({
+    status: "done",
+    data: { kind: "character", assetId: "11", src: "/files/a.png" } as CanvasNodeData,
+  });
+  const human = (status: VirtualHumanDto["status"]): VirtualHumanDto => ({
+    id: "h1",
+    name: "迅哥儿",
+    status,
+    images: [],
+    createdAt: "",
+  });
+
+  test("没传 enroll（没配置虚拟人像库、还没生成形象）时没有按钮", () => {
+    expect(card(done)).not.toContain("真人库");
+  });
+
+  test("还没加入：显示「加入真人库」按钮", () => {
+    expect(card(done, false, { human: null, onEnroll: noop })).toContain('title="加入真人库"');
+  });
+
+  test("已加入：只显示所属真人和备案状态，不能重复加入", () => {
+    const out = card(done, false, { human: human("pending"), onEnroll: noop });
+    expect(out).toContain("已在真人库「迅哥儿」· 备案中");
+    expect(out).not.toContain('title="加入真人库"');
   });
 });

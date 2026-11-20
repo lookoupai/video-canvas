@@ -27,6 +27,10 @@ func (c *deleteEpisodeCanvas) ApplyPrompts(context.Context, uint64, uint64, uint
 	return nil
 }
 
+func (c *deleteEpisodeCanvas) SyncBoards(context.Context, uint64, uint64, int, []service.DramaBoardSegment) error {
+	return nil
+}
+
 func (c *deleteEpisodeCanvas) DeleteEpisode(_ context.Context, _, _, _ uint64, no int) error {
 	if no == 3 {
 		return errcode.ErrDramaJobBusy

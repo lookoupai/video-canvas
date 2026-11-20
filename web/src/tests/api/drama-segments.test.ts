@@ -261,3 +261,19 @@ describe("api/drama：转写稿（片场平台适配）", () => {
     post.mockRestore();
   });
 });
+
+describe("api/drama：集摘要的故事板数", () => {
+  test("有新鲜故事板的片段数，缺省为 0", () => {
+    const base = {
+      no: 1,
+      title: "",
+      synopsis: "",
+      script_status: "ready" as const,
+      locked: true,
+      revision: 1,
+      updated_at: "",
+    };
+    expect(mapEpisodeSummary(base).doneBoardCount).toBe(0);
+    expect(mapEpisodeSummary({ ...base, done_board_count: 3 }).doneBoardCount).toBe(3);
+  });
+});

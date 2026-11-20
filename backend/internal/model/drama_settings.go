@@ -104,7 +104,7 @@ type DramaSourceEstimate struct {
 
 // SaveDramaPromptReq 创建或覆盖个人提示词，更新须携带 revision。
 type SaveDramaPromptReq struct {
-	Step     string            `json:"step" binding:"required,oneof=plan scripts assets asset_prompts video"`
+	Step     string            `json:"step" binding:"required,oneof=plan scripts assets asset_prompts video board"`
 	Name     string            `json:"name"`
 	Bodies   map[string]string `json:"bodies"`
 	Revision int64             `json:"revision"`
@@ -123,7 +123,7 @@ type DramaPromptView struct {
 // DramaPlanningReq 是范围变更和恢复内置的请求；改用内置重试只对分集规划（plan）生效，其他环节由业务层拒绝。
 type DramaPlanningReq struct {
 	RangeEnd int    `json:"range_end" binding:"min=0"`
-	Step     string `json:"step" binding:"omitempty,oneof=plan scripts assets asset_prompts video"`
+	Step     string `json:"step" binding:"omitempty,oneof=plan scripts assets asset_prompts video board"`
 }
 
 // DramaSkillView 是短剧可选择的技能目录项。

@@ -2,7 +2,8 @@ import { create } from "zustand";
 
 import type { DramaImageModels } from "@/api/drama/type";
 
-type Slot = keyof DramaImageModels;
+/** 会跟着换模型的只有三类资产，故事板的模型不在内 */
+type Slot = Exclude<keyof DramaImageModels, "board">;
 
 type ModelSwitchState = {
   /** 每部短剧待换的模型：资产类型 → 新模型 key（空串 = 跟随默认，即清单第一个） */

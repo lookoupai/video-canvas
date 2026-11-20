@@ -367,6 +367,7 @@ func TestAdminAI_PermissionMatrix(t *testing.T) {
 		{http.MethodPut, "/channels/x/secret", true},
 		{http.MethodPut, "/channels/sort", true},
 		{http.MethodPut, "/channels/x/secret-key", true},
+		{http.MethodPut, "/channels/x/filing-secret", true},
 		{http.MethodPost, "/channels/x/pull-models", false},
 		{http.MethodPost, "/channels/x/models/import", false},
 		{http.MethodPut, "/channels/x/models/sort", false},
@@ -1002,6 +1003,49 @@ func TestAdminChannelHandler_SecretKey(t *testing.T) {
 		aicWant(t, env.super(http.MethodPut, path, map[string]any{"value": strings.Repeat("k", 4097)}), http.StatusBadRequest, errcode.ErrInvalidParams.Code)
 		aicWant(t, env.super(http.MethodPut, path, "{not json"), http.StatusBadRequest, errcode.ErrInvalidParams.Code)
 		aicWant(t, env.super(http.MethodPut, aicBase+"/channels/ghost/secret-key", map[string]any{"value": "x"}), http.StatusNotFound, errcode.ErrChannelNotFound.Code)
+	})
+}
+
+func TestAdminChannelHandler_Filing(t *testing.T) {
+	env := aicNewEnv(t)
+	// 虚拟人像库只对方舟官方域名开放，所以用官方 Base URL 建渠道；gw.example.com 是第三方中转
+	ark := aicChannelJSON("ark-main")
+	ark["base_url"] = "https://ark.cn-beijing.volces.com/api/v3"
+	aicWant(t, env.super(http.MethodPost, aicBase+"/channels", ark), http.StatusOK, 0)
+	aicWant(t, env.super(http.MethodPost, aicBase+"/channels", aicChannelJSON("relay")), http.StatusOK, 0)
+
+	t.Run("第三方中转渠道不能启用虚拟人像库：业务校验 50013", func(t *testing.T) {
+		aicWant(t, env.super(http.MethodPut, aicBase+"/channels/relay", map[string]any{
+			"filing": map[string]any{"enabled": true, "group_id": "group-1"},
+		}), http.StatusBadRequest, errcode.ErrChannelInvalid.Code)
+	})
+	t.Run("保存虚拟人像库配置：详情带配置与站点", func(t *testing.T) {
+		r := env.super(http.MethodPut, aicBase+"/channels/ark-main", map[string]any{
+			"filing": map[string]any{"enabled": true, "group_id": "group-1", "project_name": "default"},
+		})
+		aicWant(t, r, http.StatusOK, 0)
+		if !strings.Contains(r.Raw, `"group_id":"group-1"`) || !strings.Contains(r.Raw, `"site":"cn-beijing"`) || !strings.Contains(r.Raw, `"access_key_set":false`) {
+			t.Fatalf("详情不符合预期：%s", r.Raw)
+		}
+		// 启用时缺素材组 ID：业务校验 50013
+		aicWant(t, env.super(http.MethodPut, aicBase+"/channels/ark-main", map[string]any{
+			"filing": map[string]any{"enabled": true, "group_id": ""},
+		}), http.StatusBadRequest, errcode.ErrChannelInvalid.Code)
+	})
+	t.Run("设置 AK/SK：只写不回显，详情显示已设置", func(t *testing.T) {
+		path := aicBase + "/channels/ark-main/filing-secret"
+		r := env.super(http.MethodPut, path, map[string]any{"access_key": "ak-plain-1", "secret_key": "sk-plain-2"})
+		aicWant(t, r, http.StatusOK, 0)
+		if strings.Contains(r.Raw, "plain") {
+			t.Fatalf("响应不得回显凭证：%s", r.Raw)
+		}
+		g := env.admin(http.MethodGet, aicBase+"/channels/ark-main", nil)
+		if strings.Contains(g.Raw, "plain") || !strings.Contains(g.Raw, `"access_key_set":true`) || !strings.Contains(g.Raw, `"secret_key_set":true`) {
+			t.Fatalf("详情不符合预期：%s", g.Raw)
+		}
+		aicWant(t, env.super(http.MethodPut, path, map[string]any{"access_key": "ak"}), http.StatusBadRequest, errcode.ErrInvalidParams.Code)
+		aicWant(t, env.super(http.MethodPut, aicBase+"/channels/ghost/filing-secret", map[string]any{"access_key": "a", "secret_key": "b"}),
+			http.StatusNotFound, errcode.ErrChannelNotFound.Code)
 	})
 }
 

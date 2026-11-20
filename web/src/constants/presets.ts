@@ -791,6 +791,15 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
     icon: "user",
   },
   {
+    id: "character_four_view_generation",
+    name: "角色四视图",
+    group: "设定图",
+    usage: "左侧正面特写，右侧正面、90° 侧面、背面等比例全身设定图",
+    prompt:
+      "Generate a clean character four-view reference sheet from the source image.\n\nOutput requirements:\n- Use an asymmetric layout: the left approximately 40% of the canvas width shows a large chest-up front close-up at eye level, with the complete face and expression clearly visible.\n- The right approximately 60% of the canvas width shows three full-body views of the same character, ordered left to right: front, strict 90-degree side, and back.\n- Keep all full-body figures at the same scale and the same height, with feet aligned on one horizontal baseline, evenly spaced, and fully visible from head to toe.\n- Preserve facial identity, age, body proportions, hairstyle, costume, accessories, and style consistently across all four views; show only the current outfit.\n- Keep facial features and clothing details clear; the back view must show the rear hairstyle and the back structure of the clothing.\n- Use a clean light-gray or pure white background with soft, even, consistent lighting and no harsh shadows, scenery, or ground clutter.\n- Final output must be one four-view character sheet with no labels, text, UI, or watermark.",
+    icon: "user",
+  },
+  {
     id: "product_three_view",
     name: "产品三视图",
     group: "设定图",

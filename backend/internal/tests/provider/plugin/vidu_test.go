@@ -105,7 +105,7 @@ func viduSubmit(env *viduEnv, srvURL, model string, input map[string]any) (*prov
 
 func TestViduPrecheckAndMeta(t *testing.T) {
 	env := newViduEnv(t)
-	if env.meta.Key != "vidu" || env.meta.Version != "1.1.0" || env.meta.Auth.Type != pluginmeta.AuthCustom {
+	if env.meta.Key != "vidu" || env.meta.Version != "1.1.1" || env.meta.Auth.Type != pluginmeta.AuthCustom {
 		t.Fatalf("meta 不符合预期：%+v", env.meta)
 	}
 	if len(env.meta.Endpoints) != 1 {

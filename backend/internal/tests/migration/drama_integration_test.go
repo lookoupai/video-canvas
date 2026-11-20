@@ -39,8 +39,8 @@ next:
 // 角色卡表本身在 0020 才下线，所以这里只跑到 0019。
 func TestDramaMigration_Upgrade(t *testing.T) {
 	db := isolatedDB(t)
-	// 短剧迁移（0017–0019）留给升级步骤；0020 删表更晚；0042、0048 给短剧和片段表加列，同样不能提前跑。
-	before := migrationsExcept(t, "0017_", "0018_", "0019_", "0020_", "0025_", "0026_", "0027_", "0042_", "0048_")
+	// 短剧迁移（0017–0019）留给升级步骤；0020 删表更晚；0042、0049 给短剧和片段表加列，同样不能提前跑。
+	before := migrationsExcept(t, "0017_", "0018_", "0019_", "0020_", "0025_", "0026_", "0027_", "0042_", "0049_")
 	if err := migration.Run(context.Background(), db, migration.Options{FS: before, Logger: testLogger()}); err != nil {
 		t.Fatal(err)
 	}

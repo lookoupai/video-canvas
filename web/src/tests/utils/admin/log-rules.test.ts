@@ -441,6 +441,7 @@ describe("动作中文名", () => {
     "channel.trusted",
     "channel.credential",
     "channel.secret_key",
+    "channel.filing_secret",
     "channel.sort",
     "model.import",
     "model.protocol",

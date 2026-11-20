@@ -1,7 +1,7 @@
 import { submitConversationRecord } from "@/api/conversation";
-import { generateSegment } from "@/api/drama";
+import { generateBoard, generateSegment } from "@/api/drama";
+import type { BoardGenerateBody, SegmentGenerateBody } from "@/api/drama/type";
 import { generateRemakeShot } from "@/api/marketing/remake";
-import type { SegmentGenerateBody } from "@/api/drama/type";
 import type {
   SubmitRecordRequest,
   SubmitRecordResultDto,
@@ -90,6 +90,22 @@ export async function submitRemakeShotTask(
   const task = await submitWithRetry(
     (retryKey) => generateRemakeShot(planId, shotId, shotRevision, retryKey),
     key,
+  );
+  acceptTasks([task]);
+  return task;
+}
+
+/**
+ * 片场生成故事板：后端写短剧画布上的故事板节点并建图片任务（任务挂在那个节点上）。
+ * 幂等键与重试、快照入库、刷新余额同片段视频。请求失败会抛错，由调用方就地提示。
+ * @param sid 片段 id
+ * @param body 按模板拼好的提示词、节点参数和任务输入
+ * @returns 任务快照
+ */
+export async function submitBoardTask(sid: string, body: BoardGenerateBody): Promise<TaskView> {
+  const { task } = await submitWithRetry(
+    (key) => generateBoard(sid, body, key),
+    crypto.randomUUID(),
   );
   acceptTasks([task]);
   return task;

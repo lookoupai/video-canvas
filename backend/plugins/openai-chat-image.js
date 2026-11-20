@@ -15,7 +15,7 @@
  * 插件没有网络与文件能力，只把任务翻译成请求描述、把响应翻译成统一结果。
  *
  * 用户输入（宿主按模型能力 capabilities 校验后传入）：
- *   prompt（必填）、images（参考图，有则一并放进 user 消息，发成签名 URL）、aspect_ratio、resolution
+ *   prompt（必填）、images（参考图，有则一并放进 user 消息，默认发成签名 URL）、aspect_ratio、resolution
  *   aspect_ratio / resolution 没有对话接口的标准字段，按 OpenRouter / Gemini 兼容网关的惯例放进 image_config
  *   （aspect_ratio、image_size）；用户没给就整个不发。网关不认时会被忽略，要控制比例请直接写进提示词。
  *   一次只出一张的模型居多，本协议不发 n。
@@ -49,7 +49,7 @@ module.exports = {
     apiVersion: 1,
     key: "openai-chat-image",
     name: "OpenAI 兼容 · 对话生图",
-    version: "1.2.0",
+    version: "1.2.1",
     vendor: "openai",
     description: "对接用 Chat Completions 出图的 OpenAI 兼容网关（如 nano-banana）：文生图与参考图生图（同步，只支持返回图片 URL 的网关）",
     auth: { type: "bearer" },
@@ -63,11 +63,20 @@ module.exports = {
         description: "接口路径里版本段的前缀，默认 /v1；上游是 /v4、/api/v3 之类时改成对应值；上游路径不带版本段就填 /",
         default: "/v1",
       },
+      as: {
+        type: "enum",
+        label: "参考图传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
+      },
     },
   },
 
   buildSubmitRequest: function (ctx) {
     var input = ctx.input || {};
+    var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
     var model = ctx.model.upstreamModel;
     var prompt = input.prompt === undefined || input.prompt === null ? "" : String(input.prompt);
     if (prompt === "") {
@@ -79,7 +88,7 @@ module.exports = {
     if (images.length > 0) {
       content = [{ type: "text", text: prompt }];
       for (var i = 0; i < images.length; i++) {
-        content.push({ type: "image_url", image_url: { url: { __fileRef: images[i], as: "url" } } });
+        content.push({ type: "image_url", image_url: { url: { __fileRef: images[i], as: referenceFormat } } });
       }
     }
 

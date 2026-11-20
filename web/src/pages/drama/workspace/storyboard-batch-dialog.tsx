@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Layers, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { estimateJob, submitJob } from "@/api/drama";
@@ -277,7 +277,6 @@ export function StoryboardBatchButton({
   return (
     <>
       <Button variant="outline" size="sm" onClick={openDialog}>
-        <Layers />
         批量生成脚本
       </Button>
       <StoryboardBatchDialog

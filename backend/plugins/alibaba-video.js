@@ -19,7 +19,7 @@
  *   wan2.2-s2v          图 + 音频生成数字人视频：input.image_url / audio_url，时长跟随音频
  *
  * 用户输入（宿主按模型能力 capabilities 校验后传入）：
- *   prompt、op（t2v / i2v / omni）、images / videos / audios（文件引用，交给宿主换成签名 URL）、
+ *   prompt、op（t2v / i2v / omni）、images / videos / audios（文件引用，由宿主按渠道设置转换，默认使用存储 URL）、
  *   duration（秒）、resolution（480P / 720P / 1080P，大小写与是否带 P 都可）、aspect_ratio（16:9 / 9:16 / 1:1 / 4:3 / 3:4 / adaptive）、
  *   generate_audio（boolean，对应 parameters.audio）、seed、watermark、prompt_extend、negative_prompt
  *   wan3.0 / wan2.7-i2v：images[0] 首帧、images[1] 尾帧；op 为 omni 时 images / videos / audios 全部当参考素材（wan3.0）
@@ -35,12 +35,22 @@ module.exports = {
     apiVersion: 1,
     key: "alibaba-video",
     name: "阿里云百炼 · 视频",
-    version: "1.1.0",
+    version: "1.1.1",
     vendor: "alibaba",
     description: "对接阿里云百炼 DashScope 万相视频：文生 / 图生 / 首尾帧 / 数字人",
     auth: { type: "bearer" },
     endpoints: {
       video: { mode: "async", method: "POST", path: "/api/v1/services/aigc/…/video-synthesis" },
+    },
+    channelSettings: {
+      as: {
+        type: "enum",
+        label: "素材传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
+      },
     },
     poll: { firstDelay: 10, interval: 8, maxInterval: 20, jitter: 0.2 },
   },
@@ -188,6 +198,8 @@ function videoProfile(model) {
 
 function buildVideoRequest(ctx) {
   var input = ctx.input || {};
+  var settings = (ctx.channel && ctx.channel.settings) || {};
+  var referenceFormat = settings.as || "url";
   var model = ctx.model.upstreamModel;
   var profile = videoProfile(model);
   var kind = profile.kind;
@@ -260,13 +272,13 @@ function buildVideoRequest(ctx) {
   if (kind === "all") {
     inp.media = [];
     if (input.op === "omni") {
-      pushMedia(inp.media, "reference_image", images, 10);
-      pushMedia(inp.media, "reference_video", videos, 5);
-      pushMedia(inp.media, "reference_audio", audios, 5);
+      pushMedia(inp.media, "reference_image", images, 10, referenceFormat);
+      pushMedia(inp.media, "reference_video", videos, 5, referenceFormat);
+      pushMedia(inp.media, "reference_audio", audios, 5, referenceFormat);
     } else {
-      pushMedia(inp.media, "first_frame", images.slice(0, 1), 1);
-      pushMedia(inp.media, "last_frame", images.slice(1, 2), 1);
-      pushMedia(inp.media, "reference_audio", audios, 1);
+      pushMedia(inp.media, "first_frame", images.slice(0, 1), 1, referenceFormat);
+      pushMedia(inp.media, "last_frame", images.slice(1, 2), 1, referenceFormat);
+      pushMedia(inp.media, "reference_audio", audios, 1, referenceFormat);
     }
     if (inp.media.length === 0) {
       delete inp.media;
@@ -277,11 +289,11 @@ function buildVideoRequest(ctx) {
   } else if (kind === "media") {
     inp.media = [];
     if (videos.length > 0) {
-      pushMedia(inp.media, "first_clip", videos, 1);
+      pushMedia(inp.media, "first_clip", videos, 1, referenceFormat);
     } else {
-      pushMedia(inp.media, "first_frame", images.slice(0, 1), 1);
-      pushMedia(inp.media, "last_frame", images.slice(1, 2), 1);
-      pushMedia(inp.media, "driving_audio", audios, 1);
+      pushMedia(inp.media, "first_frame", images.slice(0, 1), 1, referenceFormat);
+      pushMedia(inp.media, "last_frame", images.slice(1, 2), 1, referenceFormat);
+      pushMedia(inp.media, "driving_audio", audios, 1, referenceFormat);
     }
     if (inp.media.length === 0) {
       throw new Error(model + " 需要首帧图片或首段视频");
@@ -290,28 +302,28 @@ function buildVideoRequest(ctx) {
     if (images.length === 0) {
       throw new Error(model + " 需要首帧图片");
     }
-    inp.first_frame_url = urlRef(images[0]);
+    inp.first_frame_url = fileRef(images[0], referenceFormat);
     if (images.length > 1) {
-      inp.last_frame_url = urlRef(images[1]);
+      inp.last_frame_url = fileRef(images[1], referenceFormat);
     }
   } else if (kind === "speech") {
     if (images.length === 0 || audios.length === 0) {
       throw new Error(model + " 需要一张人物图片和一段音频");
     }
-    inp.image_url = urlRef(images[0]);
-    inp.audio_url = urlRef(audios[0]);
+    inp.image_url = fileRef(images[0], referenceFormat);
+    inp.audio_url = fileRef(audios[0], referenceFormat);
   } else if (kind === "image") {
     if (images.length === 0) {
       throw new Error(model + " 需要参考图片");
     }
-    inp.img_url = urlRef(images[0]);
+    inp.img_url = fileRef(images[0], referenceFormat);
   } else {
     // t2v / size：文生视频，提示词必填；可带一段音频驱动口型 / 配乐
     if (!prompt) {
       throw new Error(model + " 需要提示词");
     }
     if (audios.length > 0) {
-      inp.audio_url = urlRef(audios[0]);
+      inp.audio_url = fileRef(audios[0], referenceFormat);
     }
   }
 
@@ -376,15 +388,15 @@ function normResolution(v) {
 }
 
 
-function urlRef(ref) {
-  return { __fileRef: ref, as: "url" };
+function fileRef(ref, format) {
+  return { __fileRef: ref, as: format };
 }
 
 
 // 往 input.media 里追加同一类型的素材，最多 max 个。
-function pushMedia(media, type, refs, max) {
+function pushMedia(media, type, refs, max, format) {
   for (var i = 0; i < refs.length && i < max; i++) {
-    media.push({ type: type, url: urlRef(refs[i]) });
+    media.push({ type: type, url: fileRef(refs[i], format) });
   }
 }
 

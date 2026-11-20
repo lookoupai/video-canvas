@@ -110,6 +110,7 @@ type ChannelView struct {
 	Enabled      bool               `json:"enabled"`
 	SecretSet    bool               `json:"secret_set"`
 	SecretKeySet bool               `json:"secret_key_set"`
+	Filing       ChannelFilingView  `json:"filing"`
 	UpdatedBy    uint64             `json:"updated_by"`
 	UpdatedAt    time.Time          `json:"updated_at"`
 	CreatedAt    time.Time          `json:"created_at"`
@@ -134,6 +135,7 @@ type ChannelUpdateInput struct {
 	Headers   map[string]string   // nil 表示不改；非 nil（含空对象）表示整体替换
 	RateLimit *provider.RateLimit // nil 表示不改
 	Enabled   *bool
+	Filing    *model.ChannelFiling // nil 表示不改；非 nil 表示整体替换
 	ActorID   uint64
 }
 
@@ -265,6 +267,9 @@ func (s *AIChannelService) view(ctx context.Context, ch *model.AIChannel) (*Chan
 	}
 	if len(ch.RateLimitJSON) > 0 {
 		_ = json.Unmarshal(ch.RateLimitJSON, &v.RateLimit) // 损坏按“不限”输出
+	}
+	if v.Filing, err = s.filingView(ctx, ch); err != nil {
+		return nil, err
 	}
 	return v, nil
 }

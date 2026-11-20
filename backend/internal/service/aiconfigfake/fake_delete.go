@@ -95,6 +95,8 @@ func (m *MemRepo) DeleteChannel(_ context.Context, key string) (repository.Chann
 	delete(m.Channels, key)
 	delete(m.Secrets, model.ChannelSecretName(key))
 	delete(m.Secrets, model.ChannelSecretKeyName(key))
+	delete(m.Secrets, model.ChannelFilingAccessKeyName(key))
+	delete(m.Secrets, model.ChannelFilingSecretKeyName(key))
 	return refs, nil
 }
 

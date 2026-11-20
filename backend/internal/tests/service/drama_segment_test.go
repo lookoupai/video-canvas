@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"video-canvas/internal/drama"
 	"video-canvas/internal/model"
 	"video-canvas/internal/pkg/errcode"
 	"video-canvas/internal/pkg/idcodec"
@@ -183,9 +184,9 @@ func TestDramaSegmentService_ManualChoiceSurvivesLaterSuccess(t *testing.T) {
 	if err != nil || views[0].ChosenTaskID != idcodec.Encode(22) {
 		t.Fatalf("手选保留：%+v %v", views, err)
 	}
-	count, seconds, done, err := s.Summary(ctx, 1, 10)
-	if err != nil || count != 1 || seconds != 5 || done != 1 {
-		t.Fatalf("分集摘要：%d/%d/%d %v", count, seconds, done, err)
+	stats, err := s.Summary(ctx, 1, 10, nil)
+	if err != nil || stats.Count != 1 || stats.Seconds != 5 || stats.Done != 1 || stats.Boards != 0 {
+		t.Fatalf("分集摘要：%+v %v", stats, err)
 	}
 }
 
@@ -218,5 +219,33 @@ func TestDramaSegmentService_ObserverIsolationAndUnknownErrors(t *testing.T) {
 	r.Err = want
 	if _, err := s.List(ctx, 1, 7, 1); !errors.Is(err, want) {
 		t.Fatalf("未知错误必须保留：%v", err)
+	}
+}
+
+func TestDramaSegmentService_SummaryCountsFreshBoards(t *testing.T) {
+	ctx := context.Background()
+	r := dramasegmentfake.New()
+	s := segmentService(r)
+	fresh, err := s.Create(ctx, 1, 7, 1, &model.CreateDramaSegmentReq{Prompt: "原稿一"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale, err := s.Create(ctx, 1, 7, 1, &model.CreateDramaSegmentReq{Prompt: "原稿二"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Create(ctx, 1, 7, 1, &model.CreateDramaSegmentReq{Prompt: "没有故事板"}); err != nil {
+		t.Fatal(err)
+	}
+	boards := map[string]string{
+		idcodec.Encode(uint64(fresh.ID)): drama.SourceHash("原稿一"),
+		// 出图之后原稿改过：哈希对不上，不算
+		idcodec.Encode(uint64(stale.ID)): drama.SourceHash("旧原稿"),
+		// 已经不在这一集的片段
+		"gone": drama.SourceHash("x"),
+	}
+	stats, err := s.Summary(ctx, 1, 10, boards)
+	if err != nil || stats.Count != 3 || stats.Boards != 1 {
+		t.Fatalf("只数有故事板且原稿没改过的片段：%+v %v", stats, err)
 	}
 }

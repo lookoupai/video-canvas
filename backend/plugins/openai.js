@@ -19,7 +19,7 @@
  * 用户输入（宿主按模型能力 capabilities 校验后传入）：
  *   prompt（必填）、system（系统提示，没填就不发）、
  *   max_tokens（最大输出，没填就不发：Responses 发成 max_output_tokens，Chat 发成 max_completion_tokens）、
- *   temperature（没填就不发：推理模型不支持该参数）、images[0]（视觉模型，可选，发成签名 URL）
+ *   temperature（没填就不发：推理模型不支持该参数）、images[0]（视觉模型，可选，默认发成签名 URL）
  * 产物：{type:"text", text, usage:{input_tokens, output_tokens}}，按 Token 计费的模型据此结算；上游没有可用数字就不带 usage。
  *
  * 刻意的选择：
@@ -38,7 +38,7 @@ module.exports = {
     apiVersion: 1,
     key: "openai",
     name: "OpenAI",
-    version: "1.2.0",
+    version: "1.2.1",
     vendor: "openai",
     description: "对接 OpenAI 官方接口：文本（Responses / Chat Completions 可选，同步）",
     auth: { type: "bearer" },
@@ -58,6 +58,14 @@ module.exports = {
         label: "接口路径前缀",
         description: "接口路径里版本段的前缀，默认 /v1；上游是 /v4、/api/v3 之类时改成对应值；上游路径不带版本段就填 /",
         default: "/v1",
+      },
+      as: {
+        type: "enum",
+        label: "参考图传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
       },
     },
     import: { args: {} },
@@ -153,18 +161,19 @@ function apiPath(ctx, rest) {
 
 function buildResponsesRequest(ctx) {
   var input = ctx.input || {};
+  var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
   var prompt = input.prompt === undefined ? "" : String(input.prompt);
 
   var body = { model: ctx.model.upstreamModel };
   var firstImage = first(input.images);
   if (firstImage) {
-    // 视觉模型：input 用消息数组，图片给签名 URL（宿主把文件引用换成地址）
+    // 视觉模型：input 用消息数组，图片由宿主按渠道设置转换
     body.input = [
       {
         role: "user",
         content: [
           { type: "input_text", text: prompt },
-          { type: "input_image", image_url: { __fileRef: firstImage, as: "url" } },
+          { type: "input_image", image_url: { __fileRef: firstImage, as: referenceFormat } },
         ],
       },
     ];
@@ -189,6 +198,7 @@ function buildResponsesRequest(ctx) {
 
 function buildChatRequest(ctx) {
   var input = ctx.input || {};
+  var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
   var messages = [];
 
   var system = firstString(input.system);
@@ -200,7 +210,7 @@ function buildChatRequest(ctx) {
   if (firstImage) {
     userContent = [
       { type: "text", text: userContent },
-      { type: "image_url", image_url: { url: { __fileRef: firstImage, as: "url" } } },
+      { type: "image_url", image_url: { url: { __fileRef: firstImage, as: referenceFormat } } },
     ];
   }
   messages.push({ role: "user", content: userContent });

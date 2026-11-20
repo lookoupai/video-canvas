@@ -16,10 +16,10 @@ export const STAGES: readonly { key: WorkspaceStage; label: string }[] = [
 
 /**
  * 解析地址栏 ?area=：没有或写错回到总览。
- * 旧版的 episodes（分集视频）并入了片场，旧链接仍能落到对应位置。
+ * 旧版的 episodes（分集视频）和 board（故事板）都并入了片场，旧链接仍能落到对应位置。
  */
 export function parseStage(raw: string | null): WorkspaceStage {
-  if (raw === "episodes") return "studio";
+  if (raw === "episodes" || raw === "board") return "studio";
   return STAGES.find((stage) => stage.key === raw)?.key ?? "overview";
 }
 
@@ -80,7 +80,7 @@ export function episodePips(episode: EpisodeSummary): [PipState, PipState, PipSt
   return [script, breakdown, storyboard, final];
 }
 
-/** 总览矩阵里一格：none 表示前置工序没做完，不可点；done / total 只有片段列有 */
+/** 总览矩阵里一格：none 表示前置工序没做完，不可点；done / total 只有故事板和片段列有 */
 export type MatrixCell = {
   state: "done" | "part" | "run" | "todo" | "none";
   done?: number;
@@ -92,6 +92,8 @@ export type MatrixRow = {
   script: MatrixCell;
   breakdown: MatrixCell;
   storyboard: MatrixCell;
+  /** 有新鲜故事板的片段数；故事板不是必经工序，不影响后面的格子 */
+  board: MatrixCell;
   segments: MatrixCell;
   final: MatrixCell;
 };
@@ -111,6 +113,12 @@ export function episodeMatrix(episode: EpisodeSummary): MatrixRow {
   else if (episode.storyboardStatus === "generating") storyboard = { state: "run" };
 
   const hasSegments = episode.storyboardStatus === "ready" && episode.segmentCount > 0;
+  let board: MatrixCell = { state: "none" };
+  if (hasSegments) {
+    const done = Math.min(episode.doneBoardCount, episode.segmentCount);
+    const state = done >= episode.segmentCount ? "done" : done > 0 ? "part" : "todo";
+    board = { state, done, total: episode.segmentCount };
+  }
   const segments: MatrixCell = hasSegments
     ? {
         state: episode.doneSegmentCount >= episode.segmentCount ? "done" : "part",
@@ -122,7 +130,7 @@ export function episodeMatrix(episode: EpisodeSummary): MatrixRow {
   let final: MatrixCell = { state: hasSegments ? "todo" : "none" };
   if (episode.final) final = { state: episode.finalStale ? "part" : "done" };
 
-  return { script, breakdown, storyboard, segments, final };
+  return { script, breakdown, storyboard, board, segments, final };
 }
 
 /** 总览的整体完成度 */
@@ -207,7 +215,7 @@ export type StageHints = Partial<Record<WorkspaceStage, "run" | "todo">>;
  * 哪些工序标签要亮提醒点：
  * 剧本——集在生成或研读 / 大纲 / 分集剧本任务在跑为 run，有集还没剧本为 todo；
  * 角色与场景——拆解 / 写资产提示词在跑为 run，有剧本写好却没拆解的集为 todo；
- * 片场——分镜在生成或分镜任务在跑为 run；成片——合成任务在跑为 run。
+ * 片场——分镜在生成或分镜任务在跑为 run，有分镜但故事板没出齐（或已过期）的集为 todo；成片——合成任务在跑为 run。
  * 同一道工序 run 优先于 todo。
  */
 export function stageHints(
@@ -229,6 +237,17 @@ export function stageHints(
 
   if (running("breakdown", "asset_prompts")) hints.assets = "run";
   else if (episodes.some((ep) => ep.scriptStatus === "ready" && !ep.locked)) hints.assets = "todo";
+
+  if (
+    episodes.some(
+      (ep) =>
+        ep.storyboardStatus === "ready" &&
+        ep.segmentCount > 0 &&
+        ep.doneBoardCount < ep.segmentCount,
+    )
+  ) {
+    hints.studio = "todo";
+  }
 
   if (episodes.some((ep) => ep.storyboardStatus === "generating") || running("storyboard")) {
     hints.studio = "run";

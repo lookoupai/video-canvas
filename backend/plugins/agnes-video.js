@@ -20,7 +20,7 @@
  *
  * 用户输入（宿主按模型 capabilities 校验后传入）：
  *   prompt、duration（秒，agnes 要字符串 "4"-"12"，默认 "5"）、aspect_ratio（默认 16:9）、
- *   resolution / size（flash 固定 720P）、images / audios / videos（文件引用，宿主换成签名 URL）、seed、n
+ *   resolution / size（flash 固定 720P）、images / audios / videos（文件引用，宿主按渠道设置转换）、seed、n
  *
  * 写法说明：goja 只保证 ES5.1 + 部分 ES6，所以用 var / function，不用可选链与空值合并。
  */
@@ -30,10 +30,20 @@ module.exports = {
     apiVersion: 1,
     key: "agnes-video",
     name: "Agnes AI · 视频",
-    version: "1.0.0",
+    version: "1.0.1",
     vendor: "agnes",
     description: "Agnes AI 视频生成：文生视频、首尾帧、图片/音频/视频参考（异步轮询，完成后按 url 取片）",
     auth: { type: "bearer" },
+    channelSettings: {
+      as: {
+        type: "enum",
+        label: "素材传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
+      },
+    },
     endpoints: {
       video: { mode: "async", method: "POST", path: "/v1/videos" },
     },
@@ -41,6 +51,7 @@ module.exports = {
   },
 
   buildSubmitRequest: function (ctx) {
+    var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
     var input = ctx.input || {};
     var model = ctx.model.upstreamModel;
     var images = isArray(input.images) ? input.images : [];
@@ -74,20 +85,20 @@ module.exports = {
 
     if (mode === "keyframe") {
       if (images.length > 0) {
-        body.first_frame = { __fileRef: images[0], as: "url" };
+        body.first_frame = { __fileRef: images[0], as: referenceFormat };
       }
       if (images.length > 1) {
-        body.last_frame = { __fileRef: images[1], as: "url" };
+        body.last_frame = { __fileRef: images[1], as: referenceFormat };
       }
     } else if (mode === "reference") {
       if (images.length > 0) {
-        body.images = fileRefs(images);
+        body.images = fileRefs(images, referenceFormat);
       }
       if (audios.length > 0) {
-        body.audios = fileRefs(audios);
+        body.audios = fileRefs(audios, referenceFormat);
       }
       if (videos.length > 0) {
-        body.videos = fileRefs(videos);
+        body.videos = fileRefs(videos, referenceFormat);
       }
     }
 
@@ -263,10 +274,10 @@ function parseProgress(v) {
   return undefined;
 }
 
-function fileRefs(list) {
+function fileRefs(list, referenceFormat) {
   var out = [];
   for (var i = 0; i < list.length; i++) {
-    out.push({ __fileRef: list[i], as: "url" });
+    out.push({ __fileRef: list[i], as: referenceFormat });
   }
   return out;
 }

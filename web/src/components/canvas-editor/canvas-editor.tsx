@@ -712,15 +712,25 @@ export const CanvasEditor = memo(function CanvasEditor({
       ),
     [setContentNodes],
   );
-  /** 给空节点选素材的素材库弹框：记下放进哪个节点、锁定什么种类；关掉时保留种类，关闭动画里不闪成全部种类 */
-  const [fillPicker, setFillPicker] = useState<{ open: boolean; id: string; kind: MediaType }>({
-    open: false,
-    id: "",
-    kind: "image",
-  });
+  /**
+   * 给空节点选素材的素材库弹框：记下放进哪个节点、锁定什么种类；关掉时保留种类，关闭动画里不闪成全部种类。
+   * 放进角色卡时多一个「真人库」来源（短剧资产列表的空角色卡也走这里）。
+   */
+  const [fillPicker, setFillPicker] = useState<{
+    open: boolean;
+    id: string;
+    kind: MediaType;
+    character: boolean;
+  }>({ open: false, id: "", kind: "image", character: false });
   const openFillPicker = useCallback(
-    (id: string, kind: MediaType) => setFillPicker({ open: true, id, kind }),
-    [],
+    (id: string, kind: MediaType) =>
+      setFillPicker({
+        open: true,
+        id,
+        kind,
+        character: (getNode(id)?.data as CanvasNodeData | undefined)?.kind === "character",
+      }),
+    [getNode],
   );
   const fill = useFillUpload({
     getNode,
@@ -1149,6 +1159,7 @@ export const CanvasEditor = memo(function CanvasEditor({
                                 }
                                 kind={fillPicker.kind}
                                 limit={1}
+                                withHumans={fillPicker.character && fillPicker.kind === "image"}
                                 confirmLabel="放进节点"
                                 onConfirm={(assets) => {
                                   if (assets[0]) fill.fillAsset(fillPicker.id, assets[0]);

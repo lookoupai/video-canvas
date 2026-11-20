@@ -48,6 +48,13 @@ func (r *DramaCanvasRepository) GetCanvas(ctx context.Context, userID, canvasID 
 	return NewCanvasProjectRepository(r.db).GetByID(ctx, userID, canvasID)
 }
 
+// IsDramaCanvas 判断画布是不是该用户某部短剧的专属画布（故事板任务回写前用它认领）。
+func (r *DramaCanvasRepository) IsDramaCanvas(ctx context.Context, userID, canvasID uint64) (bool, error) {
+	var n int64
+	err := r.db.WithContext(ctx).Model(&model.DramaProject{}).Where("user_id = ? AND canvas_project_id = ?", userID, canvasID).Count(&n).Error
+	return n > 0, err
+}
+
 // WithTx 原子提交锁集与画布，任何错误（包括 CAS 冲突）都回滚整次尝试。
 func (r *DramaCanvasRepository) WithTx(ctx context.Context, fn func(DramaCanvasTx) error) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error { return fn(&dramaCanvasTx{db: tx}) })

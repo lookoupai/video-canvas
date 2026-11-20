@@ -9,7 +9,7 @@ const TITLE = { main: "选择形象主图", extra: "选择补充图", voice: "�
 
 /**
  * 角色卡用的素材库选择框：按用途锁定种类（主图、补充图只列图片，音色只列音频），
- * 补充图可多选、最多补满 4 张，已是主图 / 已添加的素材置灰并写原因（不隐藏）。
+ * 补充图可多选、最多补满 4 张，已是主图 / 已添加的素材置灰并写原因（不隐藏）。选主图、补充图时多一个「真人库」来源。
  * 选完交给 onConfirm，由调用方用 applyPickedAssets 写回节点。
  * @param request 要选什么；null 是关着
  * @param data 当前节点数据，用来判断哪些素材已被用掉
@@ -43,6 +43,7 @@ export function LibraryPickerForCharacter({
         return null;
       }}
       title={purpose ? TITLE[purpose] : undefined}
+      withHumans={purpose === "main" || purpose === "extra"}
       confirmLabel="确定"
       onConfirm={(assets) => purpose && onConfirm(assets, purpose)}
     />

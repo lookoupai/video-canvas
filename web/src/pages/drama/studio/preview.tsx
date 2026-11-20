@@ -7,6 +7,7 @@ import { TaskGenerationStatus } from "@/components/generation-status";
 import { cn } from "@/lib/utils";
 import { playableTake, segmentSeconds } from "@/utils/drama/segments";
 
+import { BoardStage, ViewSwitch } from "./board-stage";
 import { TakeCarousel } from "./take-carousel";
 import { usePlaybackContext } from "./use-playback";
 import { useStudio } from "./use-studio";
@@ -53,26 +54,43 @@ function Ambient({ src }: { src: string | null }) {
 }
 
 /**
- * 中间的预览：这个片段生成过结果时是版本轮播（正中是采用的那一版，滑到哪版就采用哪版）；
- * 连播时换成双缓冲的大播放器显示当前片段。成片在「成片」页看，不在这里。
- * 连播用的两个 video 一直挂着（轮播时只是藏起来），否则开始连播时拿不到它们。
+ * 中间的预览：顶部「故事板 | 视频」切换，一个片段先定故事板、再出视频。
+ * 视频这一面：生成过结果时是版本轮播（正中是采用的那一版，滑到哪版就采用哪版）；
+ * 连播时换成双缓冲的大播放器显示当前片段（连播时固定看视频）。成片在「成片」页看，不在这里。
+ * 连播用的两个 video 一直挂着（轮播、看故事板时只是藏起来），否则开始连播时拿不到它们。
  */
 export function Preview() {
-  const { selected, drama, actions, submitting, segments } = useStudio();
+  const { selected, drama, actions, submitting, segments, view } = useStudio();
   const playback = usePlaybackContext();
   // 连播时预览跟着当前片段（选中也会跟过去，这里直接按连播的当前片段取，不等选中更新）
   const current = segments.find((item) => item.id === playback.currentId) ?? selected;
   const take = selected ? playableTake(selected) : null;
   const shownTake = playback.active && current ? playableTake(current) : take;
   const running = !!selected && (selected.status === "running" || submitting.has(selected.id));
-  const carousel = !playback.active && !!selected && selected.takes.length > 0;
+  const showBoard = view === "board" && !playback.active;
+  const carousel = !showBoard && !playback.active && !!selected && selected.takes.length > 0;
   return (
     <section
       aria-label="预览"
       className="relative flex h-full w-full min-w-0 flex-col items-center gap-3 overflow-hidden px-5 py-4"
     >
-      <Ambient src={shownTake?.asset?.url ?? null} />
-      <div className="relative z-10 flex min-h-0 w-full flex-1 items-center justify-center">
+      <Ambient src={showBoard ? null : (shownTake?.asset?.url ?? null)} />
+      {!playback.active && (
+        <div className="relative z-10">
+          <ViewSwitch />
+        </div>
+      )}
+      {showBoard && (
+        <div className="relative z-10 flex min-h-0 w-full flex-1">
+          <BoardStage />
+        </div>
+      )}
+      <div
+        className={cn(
+          "relative z-10 flex min-h-0 w-full flex-1 items-center justify-center",
+          showBoard && "hidden",
+        )}
+      >
         {carousel && selected && (
           <div className="absolute inset-0">
             <TakeCarousel

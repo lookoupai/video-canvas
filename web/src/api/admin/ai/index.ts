@@ -277,6 +277,18 @@ export const setChannelSecretKey = (key: string, value: string) =>
   service.put<unknown>(ep.channelSecretKey(key), { value });
 
 /**
+ * 设置渠道虚拟人像库的 Access Key 与 Secret Key（super_admin）：火山引擎 / BytePlus 的 IAM 凭证，两项必填；只写
+ * @param key 渠道 key
+ * @param accessKey Access Key 明文
+ * @param secretKey Secret Key 明文
+ */
+export const setChannelFilingSecret = (key: string, accessKey: string, secretKey: string) =>
+  service.put<unknown>(ep.channelFilingSecret(key), {
+    access_key: accessKey,
+    secret_key: secretKey,
+  });
+
+/**
  * 调整渠道顺序（super_admin）：keys 必须恰好是全部渠道的 key
  * @param keys 全部渠道的新顺序
  */

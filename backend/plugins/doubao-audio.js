@@ -17,10 +17,10 @@
  *   sample_rate / speech_rate / loudness_rate / pitch_rate（数值，可选）：采样率、语速 [-50,100]、音量 [-50,100]、音调 [-12,12]，
  *     没填就不发，取值范围由运营在模型能力里配置、由上游校验；
  *   speaker（字符串，可选）：音色 ID（豆包语音合成模型 2.0 音色或声音复刻音色），作为 references 里单独的一项；
- *   audios：参考音频（最多 3 条、单条 ≤30 秒、≤10 MB，wav / mp3 / pcm / ogg_opus），文件引用换成签名 URL，按顺序各占一项。
+ *   audios：参考音频（最多 3 条、单条 ≤30 秒、≤10 MB，wav / mp3 / pcm / ogg_opus），文件引用按渠道设置转换，按顺序各占一项。
  *     注意：宿主目前只对音频模型开放图片参考，不接收参考音频（modelcfg 校验会拒绝 refs.audio.on），所以线上暂时传不进 audios；
  *     插件先按上游文档支持，宿主放开后无需再改插件；
- *   images：参考图片（最多 1 张，≤10 MB，jpeg / png / webp），换成签名 URL。图片参考不能和音色、参考音频混用，混用直接报错、不发请求。
+ *   images：参考图片（最多 1 张，≤10 MB，jpeg / png / webp），按渠道设置转换。图片参考不能和音色、参考音频混用，混用直接报错、不发请求。
  *
  * 产物：响应里的 url（带过期时间，有效期 2 小时，宿主拿到后会转存）。响应里的 base64 audio 不用：本契约不支持内联产物。
  * 刻意没做：字幕（enable_subtitle 返回的字级时间戳，没有地方展示）、水印（watermark 不传即不加水印）、
@@ -33,16 +33,27 @@ module.exports = {
     apiVersion: 1,
     key: "doubao-audio",
     name: "豆包（火山语音） · 音频",
-    version: "1.1.0",
+    version: "1.1.1",
     vendor: "volcengine",
     description: "火山引擎豆包语音 Seed Audio 音频生成（同步）",
     auth: { type: "header", name: "X-Api-Key" },
+    channelSettings: {
+      as: {
+        type: "enum",
+        label: "素材传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
+      },
+    },
     endpoints: {
       audio: { mode: "sync", method: "POST", path: "/api/v3/tts/create" },
     },
   },
 
   buildSubmitRequest: function (ctx) {
+    var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
     var input = ctx.input || {};
     var prompt = typeof input.prompt === "string" ? input.prompt : "";
     if (prompt.trim() === "") {
@@ -54,7 +65,7 @@ module.exports = {
       text_prompt: prompt,
       audio_config: audioConfigOf(input),
     };
-    var references = referencesOf(input);
+    var references = referencesOf(input, referenceFormat);
     if (references.length > 0) {
       body.references = references;
     }
@@ -123,7 +134,7 @@ function audioConfigOf(input) {
 
 // references 每一项只放一种来源（音色、音频 URL、图片 URL 互斥是单项内部的约束）；
 // 顺序是音色在前、参考音频按上传顺序在后，@音频N 的编号只数参考音频。
-function referencesOf(input) {
+function referencesOf(input, referenceFormat) {
   var audios = isArray(input.audios) ? input.audios : [];
   var images = isArray(input.images) ? input.images : [];
   var speaker = typeof input.speaker === "string" ? input.speaker.trim() : "";
@@ -137,10 +148,14 @@ function referencesOf(input) {
     refs.push({ speaker: speaker });
   }
   for (var i = 0; i < audios.length; i++) {
-    refs.push({ audio_url: { __fileRef: audios[i], as: "url" } });
+    var audio = {};
+    audio[referenceFormat === "url" ? "audio_url" : "audio_data"] = { __fileRef: audios[i], as: referenceFormat };
+    refs.push(audio);
   }
   for (var j = 0; j < images.length; j++) {
-    refs.push({ image_url: { __fileRef: images[j], as: "url" } });
+    var image = {};
+    image[referenceFormat === "url" ? "image_url" : "image_data"] = { __fileRef: images[j], as: referenceFormat };
+    refs.push(image);
   }
   return refs;
 }

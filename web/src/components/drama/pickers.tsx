@@ -3,10 +3,17 @@ import { Check, ChevronDown, Pencil } from "lucide-react";
 
 import type { DramaRatio, DramaStyles } from "@/api/drama/type";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RatioIcon } from "@/components/ratio-icon";
 import { cn } from "@/lib/utils";
-import { CUSTOM_STYLE_KEY, EPISODE_SECOND_OPTIONS, RATIOS } from "@/utils/drama/options";
+import {
+  CUSTOM_STYLE_KEY,
+  EPISODE_SECOND_OPTIONS,
+  MAX_EPISODE_SECONDS,
+  MIN_EPISODE_SECONDS,
+  RATIOS,
+} from "@/utils/drama/options";
 
 import { DramaPoster } from "./poster";
 
@@ -52,7 +59,7 @@ export function OptionRow({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "hover:bg-muted focus-visible:ring-ring/50 flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-sm outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
+        "hover:bg-muted focus-visible:ring-ring/50 flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
         active && "bg-muted font-medium",
       )}
     >
@@ -78,6 +85,8 @@ export function ChipPopover({
   ariaLabel,
   width,
   contentClassName,
+  onOpen,
+  onClose,
   children,
 }: {
   icon?: ReactNode;
@@ -100,11 +109,20 @@ export function ChipPopover({
   width?: string;
   /** 弹层额外的样式，如限高滚动 */
   contentClassName?: string;
+  /** 弹层打开时同步浮层内的草稿值 */
+  onOpen?: () => void;
+  /** 弹层收起前执行一次，用于提交浮层内的草稿值 */
+  onClose?: () => void;
   children: (close: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen && !open) onOpen?.();
+    if (!nextOpen && open) onClose?.();
+    setOpen(nextOpen);
+  };
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger
         disabled={disabled}
         title={title}
@@ -282,7 +300,7 @@ export function RatioList({
   );
 }
 
-/** 单集时长：60 / 90 / 120 / 180 秒 */
+/** 单集时长：预设档位或直接输入 30–180 秒 */
 export function SecondsList({
   seconds,
   onSeconds,
@@ -290,14 +308,67 @@ export function SecondsList({
   seconds: number;
   onSeconds: (n: number) => void;
 }) {
+  const [customSeconds, setCustomSeconds] = useState(String(seconds));
+  const parsedSeconds = Number(customSeconds);
+  const validCustomSeconds =
+    Number.isInteger(parsedSeconds) &&
+    parsedSeconds >= MIN_EPISODE_SECONDS &&
+    parsedSeconds <= MAX_EPISODE_SECONDS;
+
   return (
     <>
-      {EPISODE_SECOND_OPTIONS.map((n) => (
-        <OptionRow key={n} active={seconds === n} onClick={() => onSeconds(n)}>
-          <span className="tabular-nums">{n} 秒 / 集</span>
-          {seconds === n && <Check className="ml-auto size-4" />}
-        </OptionRow>
-      ))}
+      <div className="grid gap-1">
+        {EPISODE_SECOND_OPTIONS.map((n) => (
+          <OptionRow
+            key={n}
+            active={seconds === n}
+            onClick={() => {
+              setCustomSeconds(String(n));
+              onSeconds(n);
+            }}
+          >
+            <span className="whitespace-nowrap tabular-nums">{n} 秒 / 集</span>
+            {seconds === n && <Check className="ml-auto size-4" />}
+          </OptionRow>
+        ))}
+      </div>
+      <div className="border-border mt-2 grid gap-2 border-t px-2 pt-3">
+        <label htmlFor="custom-episode-seconds" className="text-muted-foreground text-xs">
+          自定义时长
+          <span className="ml-1 tabular-nums">
+            {MIN_EPISODE_SECONDS}–{MAX_EPISODE_SECONDS} 秒
+          </span>
+        </label>
+        <div className="flex items-center gap-2">
+          <Input
+            id="custom-episode-seconds"
+            aria-label="自定义单集时长（秒）"
+            aria-invalid={customSeconds.length > 0 && !validCustomSeconds}
+            type="number"
+            min={MIN_EPISODE_SECONDS}
+            max={MAX_EPISODE_SECONDS}
+            step={1}
+            value={customSeconds}
+            onChange={(event) => {
+              const value = event.target.value;
+              setCustomSeconds(value);
+              const nextSeconds = Number(value);
+              if (
+                Number.isInteger(nextSeconds) &&
+                nextSeconds >= MIN_EPISODE_SECONDS &&
+                nextSeconds <= MAX_EPISODE_SECONDS
+              ) {
+                onSeconds(nextSeconds);
+              }
+            }}
+            className="bg-chrome-hover border-chrome-border h-10 w-28 shrink-0 rounded-xl px-2 text-base font-medium tabular-nums"
+          />
+          <span className="text-muted-foreground text-sm">秒 / 集</span>
+        </div>
+        {customSeconds.length > 0 && !validCustomSeconds && (
+          <p className="text-destructive text-xs">请输入 30–180 的整数</p>
+        )}
+      </div>
     </>
   );
 }

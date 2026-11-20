@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 
+	"video-canvas/internal/model"
 	"video-canvas/internal/pkg/response"
 	"video-canvas/internal/provider"
 	"video-canvas/internal/service"
@@ -33,11 +34,18 @@ type createChannelReq struct {
 
 // updateChannelReq 更新渠道：字段都可选，不传表示不改；headers 传了（含空对象）就整体替换。
 type updateChannelReq struct {
-	Name      *string             `json:"name" binding:"omitempty,max=128" label:"name"`
-	BaseURL   *string             `json:"base_url" binding:"omitempty,max=512" label:"base_url"`
-	Headers   map[string]string   `json:"headers"`
-	RateLimit *provider.RateLimit `json:"rate_limit"`
-	Enabled   *bool               `json:"enabled"`
+	Name      *string              `json:"name" binding:"omitempty,max=128" label:"name"`
+	BaseURL   *string              `json:"base_url" binding:"omitempty,max=512" label:"base_url"`
+	Headers   map[string]string    `json:"headers"`
+	RateLimit *provider.RateLimit  `json:"rate_limit"`
+	Enabled   *bool                `json:"enabled"`
+	Filing    *model.ChannelFiling `json:"filing"` // 虚拟人像库配置；传了就整体替换，素材组 ID 等规则由 service 校验
+}
+
+// setFilingSecretReq 设置渠道虚拟人像库的 AK/SK：两项都必填（方舟签名同时要用）。
+type setFilingSecretReq struct {
+	AccessKey string `json:"access_key" binding:"required,max=4096" label:"Access Key"`
+	SecretKey string `json:"secret_key" binding:"required,max=4096" label:"Secret Key"`
 }
 
 // setSecretKeyReq 设置或清除渠道 Secret Key：value 为空串表示清除，所以不加 required。
@@ -112,13 +120,30 @@ func (h *AdminChannelHandler) Update(c *gin.Context) {
 	}
 	view, err := h.svc.Update(c.Request.Context(), service.ChannelUpdateInput{
 		Key: key, Name: req.Name, BaseURL: req.BaseURL, Headers: req.Headers, RateLimit: req.RateLimit,
-		Enabled: req.Enabled, ActorID: currentUserID(c),
+		Enabled: req.Enabled, Filing: req.Filing, ActorID: currentUserID(c),
 	})
 	if err != nil {
 		response.Fail(c, err)
 		return
 	}
 	response.OK(c, view)
+}
+
+// SetFilingSecret 设置渠道虚拟人像库的 Access Key 与 Secret Key。只写：响应里不回显任何内容。
+func (h *AdminChannelHandler) SetFilingSecret(c *gin.Context) {
+	key, ok := pathKey(c)
+	if !ok {
+		return
+	}
+	var req setFilingSecretReq
+	if !BindJSON(c, &req) {
+		return
+	}
+	if err := h.svc.SetFilingSecret(c.Request.Context(), currentUserID(c), key, req.AccessKey, req.SecretKey); err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.OK(c, nil)
 }
 
 // SetSecret 设置渠道 API Key。只写：响应里不回显任何内容。

@@ -10,6 +10,7 @@ import type {
   BackendEpisodeView,
   BackendJobView,
   BackendSegmentView,
+  BoardGenerateBody,
   AdaptFormat,
   AdaptSegmentInput,
   AddSegmentInput,
@@ -66,6 +67,7 @@ export const mapEpisodeSummary = (raw: BackendEpisodeSummary): EpisodeSummary =>
   segmentCount: raw.segment_count ?? 0,
   segmentSeconds: raw.segment_seconds ?? 0,
   doneSegmentCount: raw.done_segment_count ?? 0,
+  doneBoardCount: raw.done_board_count ?? 0,
   final: raw.final ? mapAsset(raw.final) : null,
   finalStale: raw.final_stale ?? false,
   hook: raw.hook ?? "",
@@ -102,13 +104,14 @@ export const mapJob = (raw: BackendJobView): DramaJob => ({
 /** 没有提示词设置（老项目）时各环节都是内置 */
 const BUILTIN_SETTING = { source: "builtin", label: "内置" } as const;
 
-/** 五个环节的提示词设置：缺的环节补成内置 */
+/** 六个环节的提示词设置：缺的环节补成内置 */
 export const mapPromptSettings = (raw: Partial<PromptSettings> | undefined): PromptSettings => ({
   plan: raw?.plan ?? BUILTIN_SETTING,
   scripts: raw?.scripts ?? BUILTIN_SETTING,
   assets: raw?.assets ?? BUILTIN_SETTING,
   asset_prompts: raw?.asset_prompts ?? BUILTIN_SETTING,
   video: raw?.video ?? BUILTIN_SETTING,
+  board: raw?.board ?? BUILTIN_SETTING,
 });
 
 export const mapDrama = (raw: BackendDramaView): Drama => ({
@@ -129,6 +132,7 @@ export const mapDrama = (raw: BackendDramaView): Drama => ({
     character: raw.image_models?.character ?? "",
     scene: raw.image_models?.scene ?? "",
     prop: raw.image_models?.prop ?? "",
+    board: raw.image_models?.board ?? "",
   },
   outlineMd: raw.outline_md ?? "",
   charactersMd: raw.characters_md ?? "",
@@ -560,6 +564,24 @@ export const generateSegment = (
   service.post<SegmentGenerateResult>(`/drama-segments/${sid}/generate`, body, {
     headers: { "Idempotency-Key": idempotencyKey },
   });
+
+/** 片场生成故事板（202）；统一经 utils/tasks/gateway.ts 调用，那里管幂等键与重试 */
+export const generateBoard = (
+  sid: string,
+  body: BoardGenerateBody,
+  idempotencyKey: string,
+): Promise<SegmentGenerateResult> =>
+  service.post<SegmentGenerateResult>(`/drama-segments/${sid}/board`, body, {
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+
+/** 切换片段故事板的当前版本（204）：滑到哪版，生视频就带哪版 */
+export const selectBoardOutput = (sid: string, outputId: string): Promise<void> =>
+  service.put<void>(
+    `/drama-segments/${sid}/board/output`,
+    { output_id: outputId },
+    { silent: true },
+  );
 
 /** 后端的「我的提示词」项 */
 type BackendMyPrompt = Omit<MyPrompt, "updatedAt"> & { updated_at: string };

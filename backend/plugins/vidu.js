@@ -34,10 +34,20 @@ module.exports = {
     apiVersion: 1,
     key: "vidu",
     name: "生数 Vidu",
-    version: "1.1.0",
+    version: "1.1.1",
     vendor: "vidu",
     description: "生数 Vidu 视频生成：文生视频、图生视频、首尾帧、参考生视频，异步轮询出片",
     auth: { type: "custom" },
+    channelSettings: {
+      as: {
+        type: "enum",
+        label: "素材传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
+      },
+    },
     endpoints: {
       video: { mode: "async", method: "POST", path: "/ent/v2/text2video" },
     },
@@ -45,6 +55,7 @@ module.exports = {
   },
 
   buildSubmitRequest: function (ctx) {
+    var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
     var input = ctx.input || {};
     var model = ctx.model.upstreamModel || "viduq1";
     var images = isArray(input.images) ? input.images : [];
@@ -64,7 +75,7 @@ module.exports = {
     if (images.length > 0) {
       var refs = [];
       for (var i = 0; i < images.length; i++) {
-        refs.push({ __fileRef: images[i], as: "url" });
+        refs.push({ __fileRef: images[i], as: referenceFormat });
       }
       body.images = refs;
     }

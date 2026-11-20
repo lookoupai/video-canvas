@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Reorder } from "motion/react";
-import { CircleX, Film, Layers, Loader2, Pause, Play, Plus } from "lucide-react";
+import { CircleX, Film, Loader2, Pause, Play, Plus } from "lucide-react";
 
-import { VideoPoster } from "@/components/canvas/media-preview";
+import { MediaPreview, VideoPoster } from "@/components/canvas/media-preview";
 import { Button } from "@/components/ui/button";
+import { useStaggeredCount } from "@/hooks/use-staggered-mount";
 import { cn } from "@/lib/utils";
 import type { Segment } from "@/api/drama/type";
 import {
@@ -14,26 +15,75 @@ import {
   sameOrder,
   segmentSeconds,
 } from "@/utils/drama/segments";
+import type { BoardStatus } from "@/utils/drama/board";
 
+import { BoardFillButton } from "./board-stage";
 import { usePlaybackContext } from "./use-playback";
 import { useStudio } from "./use-studio";
 
 const mmss = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 
+/** 片段条进入时先画几格、之后每帧追加几格 */
+const CLIPS_FIRST = 8;
+const CLIPS_BATCH = 6;
+
+/** 一段进度条的颜色：好了绿、过期琥珀、失败红、生成中闪、没有灰 */
+const STEP_CLASS: Record<"done" | "stale" | "failed" | "run" | "none", string> = {
+  done: "bg-emerald-400",
+  stale: "bg-amber-400",
+  failed: "bg-destructive",
+  run: "bg-amber-400 animate-pulse",
+  none: "bg-current opacity-30",
+};
+
+/** 片段两步的进度：左边故事板、右边视频 */
+function StepBars({ board, video }: { board: BoardStatus; video: "done" | "run" | "none" }) {
+  const boardStep = {
+    ready: "done",
+    stale: "stale",
+    failed: "failed",
+    running: "run",
+    empty: "none",
+  } as const;
+  return (
+    <span
+      className="inline-flex items-center gap-0.5"
+      title={`故事板${BOARD_TEXT[board]} · 视频${video === "done" ? "已生成" : video === "run" ? "生成中" : "未生成"}`}
+    >
+      <i className={cn("block h-1 w-3 rounded-full", STEP_CLASS[boardStep[board]])} />
+      <i className={cn("block h-1 w-3 rounded-full", STEP_CLASS[video])} />
+    </span>
+  );
+}
+
+const BOARD_TEXT: Record<BoardStatus, string> = {
+  ready: "已生成",
+  stale: "已过期",
+  failed: "生成失败",
+  running: "生成中",
+  empty: "未生成",
+};
+
 /** 片段条上的一格：宽度按时长；有采用视频显示封面，否则按状态显示图标 */
 function Clip({
   segment,
   selected,
+  fade,
   onSelect,
 }: {
   segment: Segment;
+  /** 追加的片段才淡入；第一批随外壳整块淡入，不叠着再闪一次 */
+  fade: boolean;
   selected: boolean;
   onSelect: () => void;
 }) {
-  const { submitting } = useStudio();
+  const { submitting, boards } = useStudio();
   const take = playableTake(segment);
   const running = segment.status === "running" || submitting.has(segment.id);
+  const board = boards.statusOf(segment);
+  const boardSrc =
+    board === "ready" || board === "stale" ? (boards.nodeOf(segment)?.src ?? null) : null;
   return (
     <Reorder.Item
       value={segment}
@@ -54,6 +104,7 @@ function Clip({
       whileDrag={{ scale: 1.03, zIndex: 2 }}
       className={cn(
         "bg-muted relative h-[76px] shrink-0 cursor-grab touch-none overflow-hidden rounded-lg outline-none select-none active:cursor-grabbing",
+        fade && "animate-in fade-in duration-200 motion-reduce:animate-none",
         "focus-visible:ring-ring/50 focus-visible:ring-2",
         selected
           ? "ring-primary shadow-[0_0_0_3px_color-mix(in_oklch,var(--primary)_18%,transparent)] ring-2"
@@ -62,6 +113,11 @@ function Clip({
     >
       {take?.asset ? (
         <VideoPoster src={take.asset.url} />
+      ) : boardSrc && !running ? (
+        // 还没视频：缩略图显示故事板（压暗一点，和出了视频的区分开）；小格只要缩略图，缩略图失败才退回原图
+        <div className="size-full opacity-60">
+          <MediaPreview src={boardSrc} mode="thumb" fit="cover" draggable={false} />
+        </div>
       ) : (
         <div className="text-muted-foreground grid size-full place-items-center pb-4">
           {running ? (
@@ -79,7 +135,10 @@ function Clip({
           take ? "bg-black/55 text-white" : "bg-background/70 text-muted-foreground",
         )}
       >
-        <span>{String(segment.seq + 1).padStart(2, "0")}</span>
+        <span className="flex items-center gap-1.5">
+          {String(segment.seq + 1).padStart(2, "0")}
+          <StepBars board={board} video={running ? "run" : take ? "done" : "none"} />
+        </span>
         <span>{segmentSeconds(segment)}s</span>
       </div>
     </Reorder.Item>
@@ -98,6 +157,11 @@ export function ClipBar() {
   // 拖动过程中只改本地顺序，松手再提交；store 里的片段一变（推送、服务端确认）就回到 store 的版本
   const [local, setLocal] = useState<{ base: Segment[]; list: Segment[] } | null>(null);
   const shown = local && local.base === segments ? local.list : segments;
+  // 进入片场时先画前一批，其余每帧追加一批（不在同一帧画完几十格）；追加完之前不能拖动排序，免得顺序和画出来的对不上
+  const drawn = useStaggeredCount(shown.length, { first: CLIPS_FIRST, batch: CLIPS_BATCH });
+  const complete = drawn >= shown.length;
+  const visible = complete ? shown : shown.slice(0, drawn);
+  const [first] = useState(() => new Set(visible.map((segment) => segment.id)));
 
   const commit = () => {
     if (!local || local.base !== segments) return;
@@ -112,8 +176,8 @@ export function ClipBar() {
   };
 
   return (
-    <div className="bg-sidebar h-full overflow-y-auto px-4 pt-2.5 pb-3">
-      <div className="mb-1.5 flex items-center gap-2">
+    <div className="bg-sidebar flex h-full flex-col overflow-hidden px-4 pt-2.5 pb-3">
+      <div className="mb-0.5 flex shrink-0 items-center gap-2">
         <Button
           variant="ghost"
           size="icon-sm"
@@ -142,26 +206,30 @@ export function ClipBar() {
           </span>
         )}
         <span className="flex-1" />
+        <BoardFillButton />
         <Button variant="ghost" size="sm" onClick={() => void actions.batch()}>
-          <Layers />
-          批量生成
-        </Button>{" "}
+          批量生成分镜视频
+        </Button>
       </div>
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+      {/* 上、左多留 4px（再用负外边距抵回去）：选中格的描边和光晕画在格子外面，滚动行会把外面的裁掉 */}
+      <div className="-mx-1 flex min-h-0 flex-1 items-center gap-1.5 overflow-x-auto overflow-y-hidden px-1 pt-1 pb-1 [scrollbar-gutter:stable]">
         <div className="relative shrink-0">
           <Reorder.Group
             axis="x"
             as="div"
-            values={shown}
-            onReorder={(list) => setLocal({ base: segments, list })}
+            values={visible}
+            onReorder={(list) => {
+              if (complete) setLocal({ base: segments, list });
+            }}
             onPointerUp={commit}
             className="flex shrink-0 gap-1"
           >
-            {shown.map((segment) => (
+            {visible.map((segment) => (
               <Clip
                 key={segment.id}
                 segment={segment}
                 selected={selected?.id === segment.id}
+                fade={!first.has(segment.id)}
                 onSelect={() => {
                   select(segment.id);
                   playback.jumpTo(segment.id);

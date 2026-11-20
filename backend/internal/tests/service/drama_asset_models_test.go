@@ -50,6 +50,9 @@ func TestDramaCreateValidatesVideoAndImageModels(t *testing.T) {
 		{"图片模型是文本类型", "", model.DramaImageModels{Scene: "txt"}, 10001},
 		{"图片模型是视频类型", "", model.DramaImageModels{Prop: "vid"}, 10001},
 		{"图片模型已停用", "", model.DramaImageModels{Character: "off"}, 10001},
+		{"故事板模型合法", "", model.DramaImageModels{Board: "img"}, 0},
+		{"故事板模型是视频类型", "", model.DramaImageModels{Board: "vid"}, 10001},
+		{"故事板模型已停用", "", model.DramaImageModels{Board: "off"}, 10001},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newDramaMemory()
@@ -100,12 +103,12 @@ func TestDramaUpdateVideoAndImageModels(t *testing.T) {
 	r := newDramaMemory()
 	s, registry := dramaTestService(r, &dramaTextStreamer{}, nil)
 	dramaModelRegistry(registry, nil)
-	vid, imgs := "vid", model.DramaImageModels{Prop: "img"}
+	vid, imgs := "vid", model.DramaImageModels{Prop: "img", Board: "img"}
 	view, err := s.Update(context.Background(), 7, 1, &model.UpdateDramaReq{Revision: 1, VideoModel: &vid, ImageModels: &imgs})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.VideoModel != "vid" || view.ImageModels.Prop != "img" {
+	if view.VideoModel != "vid" || view.ImageModels.Prop != "img" || view.ImageModels.Board != "img" {
 		t.Fatalf("view=%+v", view)
 	}
 	// 不带字段时保持原值；带空串清除
@@ -449,5 +452,13 @@ func TestDramaBreakdownPassesProjectImageParams(t *testing.T) {
 	want := map[string]map[string]string{"character": {"aspect_ratio": "16:9"}, "prop": {"resolution": "2K"}}
 	if canvas.applied != 1 || !reflect.DeepEqual(canvas.params, want) {
 		t.Fatalf("applied=%d params=%v", canvas.applied, canvas.params)
+	}
+}
+
+// 故事板的图片模型不属于任何资产类型，不能混进资产拆解按类型取模型的映射。
+func TestDramaImageModelsByTypeIgnoresBoard(t *testing.T) {
+	got := model.DramaImageModels{Scene: "s", Board: "b"}.ByType()
+	if !reflect.DeepEqual(got, map[string]string{"scene": "s"}) {
+		t.Fatalf("ByType=%v", got)
 	}
 }

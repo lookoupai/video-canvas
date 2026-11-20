@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -46,8 +48,33 @@ type DramaSkills interface {
 	DramaSkill(context.Context, string, string) (*model.DramaPromptSetting, error)
 }
 
-// DramaPromptSteps 是用户可配置提示词的五个环节，顺序即界面顺序。
-var DramaPromptSteps = []string{"plan", "scripts", "assets", "asset_prompts", "video"}
+// DramaPromptSteps 是用户可配置提示词的六个环节，顺序即界面顺序。
+var DramaPromptSteps = []string{"plan", "scripts", "assets", "asset_prompts", "video", "board"}
+
+// boardShotsPlaceholder 是故事板模板里放逐镜画面的占位符，自定义模板必须保留它。
+const boardShotsPlaceholder = "{{画面}}"
+
+// boardPlaceholders 是故事板模板认的全部占位符（名字不含花括号），要和前端 BOARD_PLACEHOLDERS 保持一致。
+var boardPlaceholders = []string{"格数", "列数", "行数", "比例", "画面"}
+
+// boardPlaceholderRE 匹配一个写完整的占位符，括号里不允许再有花括号。
+var boardPlaceholderRE = regexp.MustCompile(`\{\{([^{}]*)\}\}`)
+
+// checkBoardTemplate 校验故事板模板：只能用 boardPlaceholders 里的占位符，花括号要成对，且必须保留 {{画面}}。
+func checkBoardTemplate(body string) error {
+	for _, m := range boardPlaceholderRE.FindAllStringSubmatch(body, -1) {
+		if !slices.Contains(boardPlaceholders, m[1]) {
+			return errcode.ErrDramaPromptInvalid.WithMsg("不认识的占位符 " + m[0])
+		}
+	}
+	if rest := boardPlaceholderRE.ReplaceAllString(body, ""); strings.Contains(rest, "{{") || strings.Contains(rest, "}}") {
+		return errcode.ErrDramaPromptInvalid.WithMsg("占位符没写完整，花括号要成对写成 {{名字}}")
+	}
+	if !strings.Contains(body, boardShotsPlaceholder) {
+		return errcode.ErrDramaPromptInvalid.WithMsg("故事板提示词必须保留 " + boardShotsPlaceholder)
+	}
+	return nil
+}
 
 // DramaPromptPages 固定各环节允许替换的页面：每个环节一页。
 func DramaPromptPages(step string) []string {
@@ -62,6 +89,8 @@ func DramaPromptPages(step string) []string {
 		return []string{"asset_prompts"}
 	case "video":
 		return []string{"storyboard"}
+	case "board":
+		return []string{"board"}
 	}
 	return nil
 }
@@ -134,6 +163,11 @@ func validateDramaPrompt(req *model.SaveDramaPromptReq) error {
 		}
 		if !allowed || strings.TrimSpace(body) == "" || utf8.RuneCountInString(body) > 20000 {
 			return errcode.ErrDramaPromptInvalid
+		}
+		if req.Step == "board" {
+			if err := checkBoardTemplate(body); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -209,6 +243,10 @@ func (s *DramaService) snapshotPrompt(ctx context.Context, userID uint64, step s
 		}
 		setting.Label = "我的 · " + row.Name
 	case "skill":
+		// 故事板是前端拼图片提示词的模板，没有「技能」这种来源
+		if step == "board" {
+			return nil, errcode.ErrInvalidParams
+		}
 		if s.skills == nil {
 			return nil, errcode.ErrDramaSkillUnavailable
 		}
@@ -257,7 +295,11 @@ func (s *DramaService) promptViews(ctx context.Context, p *model.DramaProject) (
 		if !ok {
 			setting = model.DramaPromptSetting{Source: "builtin", Label: "内置"}
 		}
+		saved := setting
 		setting.Bodies = nil
+		if step == "board" {
+			setting.Bodies = boardPromptBodies(saved)
+		}
 		missing, err := s.promptSourceMissing(ctx, p.UserID, step, setting)
 		if err != nil {
 			return nil, err
@@ -296,4 +338,14 @@ func (s *DramaService) promptSourceMissing(ctx context.Context, userID uint64, s
 		return true, nil
 	}
 	return false, nil
+}
+
+// boardPromptBodies 故事板模板的正文：前端拼宫格图提示词要用，所以和其他环节不同，视图里带上。
+// 内置（含老项目没存过的）取当前内置模板；我的提示词取保存时的快照，快照里缺了就退回内置。
+func boardPromptBodies(setting model.DramaPromptSetting) map[string]string {
+	body := drama.PromptBody("board")
+	if setting.Source == "mine" && strings.TrimSpace(setting.Bodies["board"]) != "" {
+		body = setting.Bodies["board"]
+	}
+	return map[string]string{"board": body}
 }

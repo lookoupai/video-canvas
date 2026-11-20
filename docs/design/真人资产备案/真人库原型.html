@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>真人库原型</title>
+<style>
+  :root {
+    --bg: #0b0b0d;
+    --surface: #141418;
+    --text: #f2f2f4;
+    --muted: #8e8e96;
+    --chrome: rgba(255, 255, 255, 0.07);
+    --chrome-hover: rgba(255, 255, 255, 0.12);
+    --chrome-border: rgba(255, 255, 255, 0.12);
+    --ok: #4ade80;
+    --warn: #facc15;
+    --err: #f87171;
+    --accent: #a5b4fc;
+    --mask: rgba(0, 0, 0, 0.5);
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f4f6;
+    --surface: #ffffff;
+    --text: #1c1c1e;
+    --muted: #6b6b74;
+    --chrome: rgba(0, 0, 0, 0.05);
+    --chrome-hover: rgba(0, 0, 0, 0.09);
+    --chrome-border: rgba(0, 0, 0, 0.1);
+    --ok: #16a34a;
+    --warn: #ca8a04;
+    --err: #dc2626;
+    --accent: #6366f1;
+    --mask: rgba(0, 0, 0, 0.3);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, "PingFang SC", "Helvetica Neue", sans-serif; }
+  button, input { font: inherit; color: inherit; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 20px 16px 64px; }
+  h2 { font-size: 18px; margin: 0; }
+
+  /* 清透胶囊 */
+  .pill { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 999px; background: var(--chrome); border: 1px solid var(--chrome-border); backdrop-filter: blur(20px) saturate(150%); cursor: pointer; white-space: nowrap; }
+  .pill:hover:not(:disabled) { background: var(--chrome-hover); }
+  .pill:disabled { opacity: 0.45; cursor: not-allowed; }
+  .pill.primary { background: var(--accent); color: #111; border-color: transparent; }
+  :root[data-theme="light"] .pill.primary { color: #fff; }
+  .pill.danger { color: var(--err); }
+  .pill.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+  .seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--chrome); border: 1px solid var(--chrome-border); flex-wrap: wrap; }
+  .seg button { border: 0; background: transparent; height: 28px; padding: 0 12px; border-radius: 999px; cursor: pointer; color: var(--muted); }
+  .seg button.on { background: var(--chrome-hover); color: var(--text); }
+  .seg .count { font-size: 11px; opacity: 0.7; margin-left: 4px; }
+
+  .panel { background: var(--chrome); border: 1px solid var(--chrome-border); border-radius: 20px; padding: 16px; backdrop-filter: blur(20px) saturate(150%); }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; background: var(--chrome); border: 1px solid var(--chrome-border); white-space: nowrap; }
+  .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+  .status.ok::before { background: var(--ok); }
+  .status.wait::before { background: var(--warn); animation: blink 1.2s infinite; }
+  .status.err::before { background: var(--err); }
+  @keyframes blink { 50% { opacity: 0.3; } }
+
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .screen { display: none; }
+  .screen.on { display: block; }
+
+  /* 原型导航（不属于产品界面） */
+  .proto-nav { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 12px 0; margin-bottom: 8px; border-bottom: 1px dashed var(--chrome-border); }
+
+  /* 卡片网格 */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+  .card { border-radius: 20px; overflow: hidden; background: var(--chrome); border: 1px solid var(--chrome-border); cursor: default; }
+  .card.click { cursor: pointer; }
+  .card.click:hover { background: var(--chrome-hover); }
+  .thumb { aspect-ratio: 3 / 4; display: grid; place-items: center; color: rgba(255,255,255,.85); font-size: 30px; font-weight: 600; position: relative; }
+  .thumb .corner { position: absolute; top: 8px; right: 8px; }
+  .thumb .stack { position: absolute; left: 8px; bottom: 8px; font-size: 11px; font-weight: 400; background: rgba(0,0,0,.5); color: #fff; padding: 2px 8px; border-radius: 999px; }
+  .card .body { padding: 10px 12px 12px; display: grid; gap: 6px; }
+  .card .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* 表单 */
+  .field { display: grid; gap: 6px; margin-bottom: 14px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  .input { height: 36px; padding: 0 14px; border-radius: 999px; background: var(--chrome-hover); border: 1px solid var(--chrome-border); outline: none; width: 100%; }
+  .input:focus { border-color: var(--accent); }
+  .input:disabled { opacity: 0.5; }
+  .readonly { min-height: 36px; display: flex; align-items: center; padding: 0 14px; border-radius: 999px; background: var(--chrome); border: 1px dashed var(--chrome-border); color: var(--muted); }
+  .toggle { position: relative; width: 44px; height: 26px; border-radius: 999px; background: var(--chrome-hover); border: 1px solid var(--chrome-border); cursor: pointer; flex: none; padding: 0; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--text); transition: left .2s; }
+  .toggle.on { background: var(--accent); }
+  .toggle.on::after { left: 20px; background: #111; }
+  .toggle:disabled { opacity: 0.4; cursor: not-allowed; }
+  .row-flex { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--chrome-border); }
+  .row-flex:last-child { border-bottom: 0; }
+  .row-flex .input { width: 260px; max-width: 55vw; }
+  .warn-line { font-size: 12px; color: var(--warn); }
+  .section-title { margin-top: 18px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+
+  /* 弹窗：常驻挂载，用 hidden 开关；正文限高内部滚动 */
+  .mask { position: fixed; inset: 0; background: var(--mask); display: grid; place-items: center; padding: 16px; z-index: 10; }
+  .mask[hidden] { display: none; }
+  .dialog { width: min(560px, 100%); max-height: 86vh; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--chrome-border); border-radius: 24px; }
+  .dialog.wide { width: min(820px, 100%); }
+  .dialog .head { padding: 18px 20px 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .dialog .head h3 { margin: 0; font-size: 16px; }
+  .dialog .scroll { padding: 4px 20px; overflow: auto; }
+  .dialog .foot { padding: 12px 20px 18px; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+  .dialog .foot .left { margin-right: auto; }
+  .x { width: 32px; height: 32px; padding: 0; }
+
+  .ref-list { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+  .ref-list li { padding: 8px 12px; border-radius: 12px; background: var(--chrome); border: 1px solid var(--chrome-border); }
+
+  /* 真人详情：图片列表 */
+  .shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; margin: 6px 0 12px; }
+  .shot { border-radius: 16px; overflow: hidden; background: var(--chrome); border: 1px solid var(--chrome-border); }
+  .shot .thumb { aspect-ratio: 1; font-size: 22px; }
+  .shot .info { padding: 8px; display: grid; gap: 6px; }
+  .shot .err { font-size: 11px; color: var(--err); line-height: 1.4; }
+  .shot.add { display: grid; place-items: center; min-height: 180px; border-style: dashed; cursor: pointer; color: var(--muted); }
+  .shot.add:hover { background: var(--chrome-hover); }
+  .shot .ops { display: flex; gap: 4px; flex-wrap: wrap; }
+  .badge-main { position: absolute; left: 8px; top: 8px; font-size: 11px; font-weight: 400; background: rgba(0,0,0,.55); color: #fff; padding: 2px 8px; border-radius: 999px; }
+
+  /* 选择器 */
+  .pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+  .pick .item { border-radius: 16px; overflow: hidden; border: 2px solid transparent; cursor: pointer; background: var(--chrome); }
+  .pick .item .thumb { aspect-ratio: 1; font-size: 22px; }
+  .pick .item .cap { padding: 6px 8px; font-size: 12px; display: flex; justify-content: space-between; gap: 4px; }
+  .pick .item.on { border-color: var(--accent); }
+  .pick .item.off { opacity: 0.4; cursor: not-allowed; }
+
+  /* 短剧角色卡详情 */
+  .char-dlg { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 720px) { .char-dlg { grid-template-columns: 1fr; } }
+  .stage { border-radius: 18px; overflow: hidden; position: relative; }
+  .stage .thumb { aspect-ratio: 3 / 4; font-size: 40px; }
+  .extras { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+  .extras > div { aspect-ratio: 1; border-radius: 12px; display: grid; place-items: center; color: rgba(255,255,255,.85); font-weight: 600; }
+  .extras > .empty { background: var(--chrome); border: 1px dashed var(--chrome-border); color: var(--muted); font-weight: 400; cursor: pointer; }
+  .extras > .empty:hover { background: var(--chrome-hover); }
+  .slot { position: relative; cursor: pointer; }
+  .slot .rm { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 11px; cursor: pointer; display: grid; place-items: center; padding: 0; }
+  .slot .ftag { position: absolute; left: 4px; bottom: 4px; font-size: 10px; font-weight: 400; background: rgba(0,0,0,.55); color: #fff; padding: 1px 6px; border-radius: 999px; max-width: calc(100% - 8px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stage .rm { top: 8px; right: 8px; width: 28px; height: 28px; }
+  .stage .ftag { left: 8px; bottom: 8px; font-size: 12px; padding: 2px 8px; }
+
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 4px; border-radius: 999px; background: var(--chrome); border: 1px solid var(--chrome-border); font-size: 12px; }
+  .chip .dot { width: 22px; height: 22px; border-radius: 50%; }
+  .chip .tag { color: var(--muted); }
+  .chip .tag.ok { color: var(--ok); }
+  .chip .tag.warn { color: var(--warn); }
+
+  .empty-mark { padding: 40px 16px; text-align: center; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--chrome-border); padding: 10px 16px; border-radius: 999px; z-index: 20; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+  .toast[hidden] { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="proto-nav toolbar">
+    <div class="seg" id="nav">
+      <button class="on" data-screen="assets">个人资产库</button>
+      <button data-screen="channel">后台 · 渠道</button>
+      <button data-screen="drama">短剧工作室</button>
+    </div>
+    <button class="pill sm" id="theme">切换主题</button>
+  </div>
+
+  <!-- ============ 1. 个人资产库 ============ -->
+  <section class="screen on" id="screen-assets">
+    <div class="toolbar">
+      <div class="seg" id="assetTabs">
+        <button data-tab="history">生成历史</button>
+        <button data-tab="library">个人资产库</button>
+        <button class="on" data-tab="humans">真人库</button>
+      </div>
+      <div class="seg" id="humanFilter"></div>
+    </div>
+    <div id="tab-history" class="panel muted empty-mark" hidden>生成历史（不变）</div>
+    <div id="tab-library" hidden><div class="grid" id="libGrid"></div></div>
+    <div id="tab-humans"><div class="grid" id="humanGrid"></div></div>
+  </section>
+
+  <!-- ============ 2. 后台 · 渠道编辑 ============ -->
+  <section class="screen" id="screen-channel">
+    <div class="panel" style="max-width:640px">
+      <div class="toolbar" style="margin-bottom:8px"><h2>编辑渠道</h2></div>
+      <div class="field"><label>渠道名称</label><div class="readonly">火山方舟（国内站）</div></div>
+      <div class="field"><label>Base URL</label><div class="readonly">https://ark.cn-beijing.volces.com/api/v3</div></div>
+      <div class="field"><label>API Key</label><div class="readonly">已配置</div></div>
+
+      <div class="section-title">
+        <span>虚拟人像库</span>
+        <button class="toggle on" id="libToggle" aria-label="启用虚拟人像库"></button>
+      </div>
+      <div id="libFields">
+        <div class="row-flex">
+          <div>备案站点</div>
+          <div class="readonly" style="min-height:28px;padding:0 12px">cn-beijing</div>
+        </div>
+        <div class="row-flex">
+          <div>素材组 ID</div>
+          <input class="input" id="groupId" value="group-20261118-xxxx" />
+        </div>
+        <div class="row-flex">
+          <div>项目名</div>
+          <input class="input" id="projectName" value="default" />
+        </div>
+        <div class="row-flex">
+          <div>Access Key / Secret Key</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="status ok" id="akStatus">已配置</span>
+            <button class="pill sm" id="openSecret">重新填写</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+        <button class="pill">取消</button>
+        <button class="pill primary" id="saveChannel">保存</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4. 短剧工作室 ============ -->
+  <section class="screen" id="screen-drama">
+    <div class="toolbar"><h2>《故乡》· 资产</h2></div>
+    <div class="grid" id="dramaChars"></div>
+
+    <div class="panel" style="margin-top:20px">
+      <div class="toolbar" style="margin-bottom:10px">
+        <div>片场 · 第 1 集 · 镜头 3</div>
+        <span class="muted small">doubao-seedance-2-0</span>
+      </div>
+      <div class="readonly" style="border-radius:16px;min-height:56px;align-items:flex-start;padding:12px 14px">@迅哥儿 走进老屋，@闰土 在院子里回头……</div>
+      <div style="margin-top:10px" class="chips" id="refsBar"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ 弹窗 ============ -->
+
+<!-- 加入真人库（从个人资产库图片） -->
+<div class="mask" id="dlgEnroll" hidden>
+  <div class="dialog">
+    <div class="head"><h3>加入真人库</h3><button class="pill x" data-close>✕</button></div>
+    <div class="scroll">
+      <div class="seg" id="enrollMode" style="margin-bottom:14px">
+        <button class="on" data-mode="new">新建真人</button>
+        <button data-mode="exist">加到已有真人</button>
+      </div>
+      <div id="enrollNew">
+        <div class="field"><label>名称</label><input class="input" id="enrollName" maxlength="30" /></div>
+      </div>
+      <div id="enrollExist" hidden>
+        <div class="pick" id="enrollPick"></div>
+      </div>
+      <div class="field" style="margin-top:14px"><label>图片</label><div class="readonly" id="enrollSrc"></div></div>
+    </div>
+    <div class="foot">
+      <button class="pill" data-close>取消</button>
+      <button class="pill primary" id="enrollOk">加入并提交备案</button>
+    </div>
+  </div>
+</div>
+
+<!-- 真人详情 -->
+<div class="mask" id="dlgHuman" hidden>
+  <div class="dialog wide">
+    <div class="head">
+      <h3 id="humanTitle"></h3>
+      <button class="pill x" data-close>✕</button>
+    </div>
+    <div class="scroll">
+      <div class="field"><label>名称</label><input class="input" id="humanName" maxlength="30" style="max-width:320px" /></div>
+      <div class="row" style="display:flex;justify-content:space-between;align-items:center">
+        <div class="small muted" id="humanCount"></div>
+        <div class="small muted">备案渠道：火山方舟（国内站）</div>
+      </div>
+      <div class="shots" id="humanShots"></div>
+      <div class="small muted" id="humanRefsLine"></div>
+    </div>
+    <div class="foot">
+      <button class="pill danger left" id="humanRemove">移除真人</button>
+      <button class="pill" id="humanRetryAll">重新提交失败的图片</button>
+      <button class="pill primary" data-close>完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 从个人资产库选图（给真人加图） -->
+<div class="mask" id="dlgAddShot" hidden>
+  <div class="dialog">
+    <div class="head"><h3>从个人资产库添加图片</h3><button class="pill x" data-close>✕</button></div>
+    <div class="scroll"><div class="pick" id="addShotGrid"></div></div>
+    <div class="foot">
+      <button class="pill" data-close>取消</button>
+      <button class="pill primary" id="addShotOk" disabled>添加并提交备案</button>
+    </div>
+  </div>
+</div>
+
+<!-- 移除确认（真人 / 单张图片共用） -->
+<div class="mask" id="dlgRemove" hidden>
+  <div class="dialog">
+    <div class="head"><h3 id="removeTitle"></h3><button class="pill x" data-close>✕</button></div>
+    <div class="scroll">
+      <div id="removeTip"></div>
+      <ul class="ref-list" id="removeRefs"></ul>
+      <div class="muted small" id="removeNote">方舟侧的素材会一起删除，不可恢复。</div>
+    </div>
+    <div class="foot">
+      <button class="pill" data-close>取消</button>
+      <button class="pill danger" id="removeOk">确认移除</button>
+    </div>
+  </div>
+</div>
+
+<!-- 后台：填写 AK/SK（只写，不回显） -->
+<div class="mask" id="dlgSecret" hidden>
+  <div class="dialog">
+    <div class="head"><h3>填写 Access Key / Secret Key</h3><button class="pill x" data-close>✕</button></div>
+    <div class="scroll">
+      <div class="field"><label>Access Key</label><input class="input" id="akInput" autocomplete="off" /></div>
+      <div class="field"><label>Secret Key</label><input class="input" id="skInput" type="password" autocomplete="off" /></div>
+    </div>
+    <div class="foot">
+      <button class="pill" data-close>取消</button>
+      <button class="pill primary" id="secretOk">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 短剧：角色卡详情 -->
+<div class="mask" id="dlgChar" hidden>
+  <div class="dialog wide">
+    <div class="head"><h3 id="charTitle"></h3><button class="pill x" data-close>✕</button></div>
+    <div class="scroll">
+      <div class="char-dlg">
+        <div>
+          <div class="stage slot" id="charStage"></div>
+          <div class="extras" id="charExtras"></div>
+          <div style="margin-top:10px"><button class="pill" id="charPick">从真人库引入</button></div>
+        </div>
+        <div>
+          <div class="field"><label>角色名称</label><div class="readonly" id="charName"></div></div>
+          <div class="field"><label>音色</label><div class="readonly">未设置</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><button class="pill primary" data-close>完成</button></div>
+  </div>
+</div>
+
+<!-- 短剧：从真人库引入 -->
+<div class="mask" id="dlgPicker" hidden>
+  <div class="dialog">
+    <div class="head"><h3>从真人库引入</h3><button class="pill x" data-close>✕</button></div>
+    <div class="scroll"><div class="pick" id="pickGrid"></div></div>
+    <div class="foot">
+      <button class="pill" data-close>取消</button>
+      <button class="pill primary" id="pickOk" disabled>引入</button>
+    </div>
+  </div>
+</div>
+
+<!-- 短剧：给角色卡的一个图位选图（真人库里可用的图 + 个人资产库其他图） -->
+<div class="mask" id="dlgShotPick" hidden>
+  <div class="dialog">
+    <div class="head"><h3 id="shotPickTitle">选择图片</h3><button class="pill x" data-close>✕</button></div>
+    <div class="scroll">
+      <div class="seg" id="shotPickTabs" style="margin-bottom:12px">
+        <button class="on" data-src="humans">真人库</button>
+        <button data-src="library">个人资产库</button>
+      </div>
+      <div class="pick" id="shotPickGrid"></div>
+    </div>
+    <div class="foot">
+      <button class="pill" data-close>取消</button>
+      <button class="pill primary" id="shotPickOk" disabled>使用</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+  "use strict";
+  var MAX_SHOTS = 5; // 和角色卡一致：1 张主图 + 4 张补充图
+
+  // ---------- 模拟数据 ----------
+  var palette = ["#7c3aed,#2563eb", "#db2777,#f59e0b", "#059669,#0ea5e9", "#475569,#1e293b", "#b45309,#7c2d12", "#0891b2,#4f46e5", "#be123c,#6d28d9", "#15803d,#a16207"];
+  function bg(i) { var c = palette[i % palette.length].split(","); return "linear-gradient(135deg," + c[0] + "," + c[1] + ")"; }
+
+  var library = [
+    { id: 11, name: "迅哥儿_正面.png", c: 0 },
+    { id: 12, name: "迅哥儿_侧面.png", c: 5 },
+    { id: 13, name: "迅哥儿_全身.png", c: 6 },
+    { id: 21, name: "闰土_少年.png", c: 1 },
+    { id: 22, name: "闰土_中年.png", c: 4 },
+    { id: 31, name: "母亲_正面.png", c: 2 },
+    { id: 41, name: "杨二嫂_正面.png", c: 7 },
+    { id: 51, name: "场景_老屋.png", c: 3 }
+  ];
+  // shots 里 status：none 未备案（几乎只在失败重置后出现）/ pending 备案中 / ready 可用 / failed 失败
+  var humans = [
+    { id: 1, name: "迅哥儿", shots: [
+      { lib: 11, status: "ready" }, { lib: 12, status: "ready" }, { lib: 13, status: "pending" }
+    ] },
+    { id: 2, name: "闰土", shots: [
+      { lib: 21, status: "pending" }, { lib: 22, status: "pending" }
+    ] },
+    { id: 3, name: "母亲", shots: [
+      { lib: 31, status: "failed", err: "未检测到清晰人脸，请换一张正面照" }
+    ] }
+  ];
+  var nextHumanId = 4;
+  // 角色卡：imgs[0] 是主图，其余是补充图；每一项是引用的素材（个人资产库图片 id），
+  // 或角色卡自己生成的图（own，用颜色模拟）。角色卡不记「关联了哪个真人」，只记用了哪些图
+  var chars = [
+    { id: "c1", name: "迅哥儿", imgs: [{ lib: 11 }, { lib: 12 }] },
+    { id: "c2", name: "闰土", imgs: [{ own: 1 }] },
+    { id: "c3", name: "母亲", imgs: [{ own: 2 }] }
+  ];
+  // 其他短剧里的引用（模拟跨剧引用），按图片记
+  var otherRefs = { 11: ["《社戏》· 角色卡「迅哥儿」"] };
+
+  var channel = { enabled: true, group: "group-20261118-xxxx", akSet: true };
+
+  var state = { filter: "all", enroll: null, enrollMode: "new", enrollTarget: null, human: null, remove: null, addPick: null, char: null, pick: null, slot: null, slotSrc: "humans", slotPick: null };
+  var statusText = { none: "未备案", pending: "备案中", ready: "可用", failed: "失败" };
+  var statusClass = { none: "", pending: "wait", ready: "ok", failed: "err" };
+
+  // ---------- 工具 ----------
+  function $(id) { return document.getElementById(id); }
+  function open(id) { $(id).hidden = false; }
+  function close(id) { $(id).hidden = true; }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function lib(id) { return library.find(function (l) { return l.id === id; }); }
+  function human(id) { return humans.find(function (h) { return h.id === id; }); }
+  function initial(name) { return esc(name.replace(/\.png$/, "").slice(0, 1)); }
+  function stem(name) { return name.replace(/\.png$/, "").split("_")[0]; }
+  var toastTimer;
+  function toast(msg) { $("toast").textContent = msg; open("toast"); clearTimeout(toastTimer); toastTimer = setTimeout(function () { close("toast"); }, 2200); }
+
+  function ownerOf(libId) { return humans.find(function (h) { return h.shots.some(function (s) { return s.lib === libId; }); }); }
+  function readyShots(h) { return h.shots.filter(function (s) { return s.status === "ready"; }); }
+  // 真人的整体状态：有一张可用就算可用（引用时只带可用的图），否则看是否还有在备案的
+  function humanStatus(h) {
+    if (readyShots(h).length) return "ready";
+    if (h.shots.some(function (s) { return s.status === "pending"; })) return "pending";
+    if (h.shots.some(function (s) { return s.status === "failed"; })) return "failed";
+    return "none";
+  }
+  // 一张图被哪些角色卡用着（主图或补充图）
+  function refsOfShot(libId) {
+    var list = chars.filter(function (c) { return c.imgs.some(function (i) { return i.lib === libId; }); })
+      .map(function (c) { return "《故乡》· 角色卡「" + c.name + "」"; });
+    return list.concat(otherRefs[libId] || []);
+  }
+  // 真人被引用 = 它任意一张图被引用；同一张角色卡只算一次
+  function refsOf(h) {
+    var seen = {};
+    h.shots.forEach(function (s) { refsOfShot(s.lib).forEach(function (r) { seen[r] = true; }); });
+    return Object.keys(seen);
+  }
+  // 某张资产库图片是不是可用的备案图（生成时会以 asset:// 传）
+  function filedShot(libId) {
+    var h = ownerOf(libId);
+    if (!h) return null;
+    var s = h.shots.find(function (x) { return x.lib === libId; });
+    return { human: h, shot: s };
+  }
+  function channelReady() { return channel.enabled && channel.group.trim() !== "" && channel.akSet; }
+
+  // ---------- 模拟备案：提交后 3~6 秒出结果 ----------
+  function submit(shot) {
+    shot.status = "pending"; shot.err = "";
+    setTimeout(function () {
+      if (shot.status !== "pending") return;
+      var ok = Math.random() > 0.25;
+      shot.status = ok ? "ready" : "failed";
+      if (!ok) shot.err = "方舟审核未通过，请换一张清晰的正面照";
+      renderAll();
+    }, 3000 + Math.random() * 3000);
+  }
+  // 初始数据里的备案中也走一遍
+  humans.forEach(function (h) { h.shots.forEach(function (s) { if (s.status === "pending") submit(s); }); });
+
+  // ---------- 导航 ----------
+  document.querySelectorAll("#nav button").forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll("#nav button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      document.querySelectorAll(".screen").forEach(function (s) { s.classList.toggle("on", s.id === "screen-" + b.dataset.screen); });
+      renderAll();
+    };
+  });
+  $("theme").onclick = function () {
+    var root = document.documentElement;
+    root.setAttribute("data-theme", root.getAttribute("data-theme") === "light" ? "dark" : "light");
+  };
+  document.querySelectorAll("[data-close]").forEach(function (b) {
+    b.onclick = function () { b.closest(".mask").hidden = true; renderAll(); };
+  });
+  document.querySelectorAll(".mask").forEach(function (m) {
+    m.addEventListener("click", function (e) { if (e.target === m) { m.hidden = true; renderAll(); } });
+  });
+
+  // ---------- 个人资产库 tab ----------
+  document.querySelectorAll("#assetTabs button").forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll("#assetTabs button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      ["history", "library", "humans"].forEach(function (t) { $("tab-" + t).hidden = t !== b.dataset.tab; });
+      $("humanFilter").hidden = b.dataset.tab !== "humans";
+    };
+  });
+
+  function renderFilter() {
+    var defs = [["all", "全部"], ["ready", "可用"], ["pending", "备案中"], ["failed", "失败"]];
+    $("humanFilter").innerHTML = defs.map(function (d) {
+      var n = d[0] === "all" ? humans.length : humans.filter(function (h) { return humanStatus(h) === d[0]; }).length;
+      return '<button data-f="' + d[0] + '" class="' + (state.filter === d[0] ? "on" : "") + '">' + d[1] + '<span class="count">' + n + "</span></button>";
+    }).join("");
+    $("humanFilter").querySelectorAll("button").forEach(function (b) {
+      b.onclick = function () { state.filter = b.dataset.f; renderAll(); };
+    });
+  }
+
+  function renderLibrary() {
+    $("libGrid").innerHTML = library.map(function (img) {
+      var owner = ownerOf(img.id);
+      var action = owner
+        ? '<span class="status">真人 · ' + esc(owner.name) + "</span>"
+        : '<button class="pill sm" data-enroll="' + img.id + '">加入真人库</button>';
+      return '<div class="card"><div class="thumb" style="background:' + bg(img.c) + '">' + initial(img.name) + "</div>" +
+        '<div class="body"><div class="name small">' + esc(img.name) + "</div>" + action + "</div></div>";
+    }).join("");
+    $("libGrid").querySelectorAll("[data-enroll]").forEach(function (b) {
+      b.onclick = function () { openEnroll(Number(b.dataset.enroll)); };
+    });
+  }
+
+  function renderHumans() {
+    var list = humans.filter(function (h) { return state.filter === "all" || humanStatus(h) === state.filter; });
+    if (!humans.length) { $("humanGrid").innerHTML = '<div class="panel muted empty-mark" style="grid-column:1/-1">还没有真人<br><span class="small">在「个人资产库」的图片上点「加入真人库」</span></div>'; return; }
+    if (!list.length) { $("humanGrid").innerHTML = '<div class="panel muted empty-mark" style="grid-column:1/-1">没有符合条件的真人</div>'; return; }
+    $("humanGrid").innerHTML = list.map(function (h) {
+      var st = humanStatus(h);
+      var cover = lib(h.shots[0].lib);
+      var ready = readyShots(h).length;
+      var refs = refsOf(h).length;
+      return '<div class="card click" data-human="' + h.id + '">' +
+        '<div class="thumb" style="background:' + bg(cover.c) + '">' + esc(h.name.slice(0, 1)) +
+        '<span class="corner status ' + statusClass[st] + '">' + statusText[st] + "</span>" +
+        '<span class="stack">' + h.shots.length + " 张</span></div>" +
+        '<div class="body"><div class="row"><div class="name">' + esc(h.name) + '</div><span class="small muted">可用 ' + ready + "/" + h.shots.length + "</span></div>" +
+        '<div class="small muted">' + (refs ? "被 " + refs + " 张角色卡引用" : "未被引用") + "</div></div></div>";
+    }).join("");
+    $("humanGrid").querySelectorAll("[data-human]").forEach(function (el) {
+      el.onclick = function () { openHuman(Number(el.dataset.human)); };
+    });
+  }
+
+  // ---------- 加入真人库 ----------
+  function openEnroll(libId) {
+    state.enroll = libId; state.enrollTarget = null;
+    var img = lib(libId);
+    $("enrollName").value = stem(img.name);
+    $("enrollSrc").textContent = img.name;
+    setEnrollMode("new");
+    open("dlgEnroll");
+  }
+  function setEnrollMode(mode) {
+    state.enrollMode = mode;
+    $("enrollMode").querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", b.dataset.mode === mode); });
+    $("enrollNew").hidden = mode !== "new";
+    $("enrollExist").hidden = mode !== "exist";
+    renderEnrollPick();
+  }
+  $("enrollMode").querySelectorAll("button").forEach(function (b) { b.onclick = function () { setEnrollMode(b.dataset.mode); }; });
+  function renderEnrollPick() {
+    $("enrollPick").innerHTML = humans.map(function (h) {
+      var full = h.shots.length >= MAX_SHOTS;
+      return '<div class="item' + (full ? " off" : "") + (state.enrollTarget === h.id ? " on" : "") + '" data-target="' + h.id + '">' +
+        '<div class="thumb" style="background:' + bg(lib(h.shots[0].lib).c) + '">' + esc(h.name.slice(0, 1)) + "</div>" +
+        '<div class="cap"><span class="name">' + esc(h.name) + '</span><span class="muted">' + h.shots.length + "/" + MAX_SHOTS + "</span></div></div>";
+    }).join("") || '<div class="muted small">还没有真人</div>';
+    $("enrollPick").querySelectorAll("[data-target]").forEach(function (el) {
+      el.onclick = function () { if (el.classList.contains("off")) return; state.enrollTarget = Number(el.dataset.target); renderEnrollPick(); syncEnrollOk(); };
+    });
+    syncEnrollOk();
+  }
+  function syncEnrollOk() {
+    $("enrollOk").disabled = state.enrollMode === "new" ? !$("enrollName").value.trim() : !state.enrollTarget;
+  }
+  $("enrollName").oninput = syncEnrollOk;
+  $("enrollOk").onclick = function () {
+    var shot = { lib: state.enroll, status: "none" };
+    var h;
+    if (state.enrollMode === "new") {
+      h = { id: nextHumanId++, name: $("enrollName").value.trim(), shots: [shot] };
+      humans.unshift(h);
+    } else {
+      h = human(state.enrollTarget);
+      h.shots.push(shot);
+    }
+    submit(shot);
+    close("dlgEnroll");
+    toast("已加入「" + h.name + "」，正在备案");
+    renderAll();
+  };
+
+  // ---------- 真人详情 ----------
+  function openHuman(id) { state.human = id; $("humanName").value = human(id).name; open("dlgHuman"); renderHumanDlg(); }
+  $("humanName").onchange = function () {
+    var h = human(state.human); var v = $("humanName").value.trim();
+    if (v) h.name = v; else $("humanName").value = h.name;
+    renderAll();
+  };
+  function renderHumanDlg() {
+    var h = human(state.human);
+    if (!h || $("dlgHuman").hidden) return;
+    var st = humanStatus(h);
+    $("humanTitle").innerHTML = esc(h.name) + ' <span class="status ' + statusClass[st] + '" style="margin-left:6px;vertical-align:middle">' + statusText[st] + "</span>";
+    $("humanCount").textContent = "图片 " + h.shots.length + "/" + MAX_SHOTS + " · 可用 " + readyShots(h).length;
+    var html = h.shots.map(function (s, i) {
+      var img = lib(s.lib);
+      var ops = "";
+      if (s.status === "failed" || s.status === "none") ops += '<button class="pill sm" data-retry="' + i + '">' + (s.status === "failed" ? "重新提交" : "提交备案") + "</button>";
+      if (i > 0) ops += '<button class="pill sm" data-main="' + i + '">设为封面</button>';
+      ops += '<button class="pill sm danger" data-rmshot="' + i + '">移除</button>';
+      var used = refsOfShot(img.id).length;
+      return '<div class="shot"><div class="thumb" style="background:' + bg(img.c) + '">' + initial(img.name) +
+        (i === 0 ? '<span class="badge-main">封面</span>' : "") +
+        '<span class="corner status ' + statusClass[s.status] + '">' + statusText[s.status] + "</span></div>" +
+        '<div class="info"><div class="small name">' + esc(img.name) + "</div>" +
+        (used ? '<div class="small muted">' + used + " 张角色卡在用</div>" : "") +
+        (s.err ? '<div class="err">' + esc(s.err) + "</div>" : "") +
+        '<div class="ops">' + ops + "</div></div></div>";
+    }).join("");
+    if (h.shots.length < MAX_SHOTS) html += '<div class="shot add" id="addShot">＋ 添加图片</div>';
+    $("humanShots").innerHTML = html;
+    var refs = refsOf(h);
+    $("humanRefsLine").textContent = refs.length ? "被引用：" + refs.join("、") : "";
+    $("humanRetryAll").hidden = !h.shots.some(function (s) { return s.status === "failed"; });
+
+    $("humanShots").querySelectorAll("[data-retry]").forEach(function (b) {
+      b.onclick = function () { submit(h.shots[Number(b.dataset.retry)]); renderAll(); };
+    });
+    $("humanShots").querySelectorAll("[data-main]").forEach(function (b) {
+      b.onclick = function () { var i = Number(b.dataset.main); var s = h.shots.splice(i, 1)[0]; h.shots.unshift(s); renderAll(); };
+    });
+    $("humanShots").querySelectorAll("[data-rmshot]").forEach(function (b) {
+      b.onclick = function () { askRemoveShot(h, Number(b.dataset.rmshot)); };
+    });
+    var add = $("addShot");
+    if (add) add.onclick = function () { openAddShot(); };
+  }
+  $("humanRetryAll").onclick = function () {
+    human(state.human).shots.forEach(function (s) { if (s.status === "failed") submit(s); });
+    renderAll();
+  };
+
+  // 给真人加图：只列出还没归属真人的资产库图片
+  function openAddShot() { state.addPick = null; open("dlgAddShot"); renderAddShot(); }
+  function renderAddShot() {
+    var free = library.filter(function (l) { return !ownerOf(l.id); });
+    $("addShotGrid").innerHTML = free.length ? free.map(function (l) {
+      return '<div class="item' + (state.addPick === l.id ? " on" : "") + '" data-add="' + l.id + '"><div class="thumb" style="background:' + bg(l.c) + '">' + initial(l.name) + '</div><div class="cap"><span class="name">' + esc(l.name) + "</span></div></div>";
+    }).join("") : '<div class="muted small">个人资产库里没有可添加的图片</div>';
+    $("addShotGrid").querySelectorAll("[data-add]").forEach(function (el) {
+      el.onclick = function () { state.addPick = Number(el.dataset.add); renderAddShot(); };
+    });
+    $("addShotOk").disabled = !state.addPick;
+  }
+  $("addShotOk").onclick = function () {
+    var shot = { lib: state.addPick, status: "none" };
+    human(state.human).shots.push(shot);
+    submit(shot);
+    close("dlgAddShot");
+    renderAll();
+  };
+
+  // ---------- 移除 ----------
+  function askRemoveHuman(h) {
+    var refs = refsOf(h);
+    state.remove = { type: "human", id: h.id };
+    $("removeTitle").textContent = "移除真人「" + h.name + "」";
+    if (refs.length) {
+      $("removeTip").textContent = "它的图片正被以下角色卡使用，先在角色卡里换掉或删掉：";
+      $("removeRefs").innerHTML = refs.map(function (r) { return "<li>" + esc(r) + "</li>"; }).join("");
+      $("removeOk").disabled = true;
+      $("removeNote").hidden = true;
+    } else {
+      $("removeTip").textContent = "共 " + h.shots.length + " 张图片，个人资产库里的原图会保留。";
+      $("removeRefs").innerHTML = "";
+      $("removeOk").disabled = false;
+      $("removeNote").hidden = false;
+    }
+    open("dlgRemove");
+  }
+  function askRemoveShot(h, index) {
+    var img = lib(h.shots[index].lib);
+    var refs = refsOfShot(img.id);
+    state.remove = { type: "shot", id: h.id, index: index };
+    $("removeTitle").textContent = "移除图片「" + img.name + "」";
+    $("removeRefs").innerHTML = "";
+    $("removeNote").hidden = false;
+    $("removeOk").disabled = false;
+    if (refs.length) {
+      $("removeTip").textContent = "这张图正被以下角色卡使用，先在角色卡里换掉或删掉它：";
+      $("removeRefs").innerHTML = refs.map(function (r) { return "<li>" + esc(r) + "</li>"; }).join("");
+      $("removeOk").disabled = true;
+      $("removeNote").hidden = true;
+    } else if (h.shots.length === 1) {
+      $("removeTip").textContent = "这是「" + h.name + "」唯一的图片，请改用「移除真人」。";
+      $("removeOk").disabled = true;
+      $("removeNote").hidden = true;
+    } else {
+      $("removeTip").textContent = "个人资产库里的原图会保留。";
+    }
+    open("dlgRemove");
+  }
+  $("humanRemove").onclick = function () { askRemoveHuman(human(state.human)); };
+  $("removeOk").onclick = function () {
+    var r = state.remove;
+    if (r.type === "human") {
+      var name = human(r.id).name;
+      humans = humans.filter(function (h) { return h.id !== r.id; });
+      close("dlgHuman");
+      toast("已移除「" + name + "」");
+    } else {
+      human(r.id).shots.splice(r.index, 1);
+    }
+    close("dlgRemove");
+    renderAll();
+  };
+
+  // ---------- 后台：渠道 ----------
+  function renderChannel() {
+    $("libToggle").classList.toggle("on", channel.enabled);
+    $("libFields").hidden = !channel.enabled;
+    $("akStatus").textContent = channel.akSet ? "已配置" : "未配置";
+    $("akStatus").className = "status " + (channel.akSet ? "ok" : "err");
+    $("openSecret").textContent = channel.akSet ? "重新填写" : "填写";
+  }
+  $("libToggle").onclick = function () { channel.enabled = !channel.enabled; renderAll(); };
+  $("groupId").oninput = function () { channel.group = $("groupId").value; };
+  $("openSecret").onclick = function () { $("akInput").value = ""; $("skInput").value = ""; open("dlgSecret"); };
+  $("secretOk").onclick = function () {
+    if (!$("akInput").value.trim() || !$("skInput").value.trim()) { toast("两项都要填写"); return; }
+    channel.akSet = true; close("dlgSecret"); toast("密钥已保存"); renderAll();
+  };
+  $("saveChannel").onclick = function () {
+    if (channel.enabled && !channel.group.trim()) { toast("请填写素材组 ID"); return; }
+    toast("已保存");
+    renderAll();
+  };
+
+  // ---------- 短剧工作室 ----------
+  // 一张图的展示信息：颜色、来源标签、生成时怎么传
+  function imgInfo(img) {
+    if (img.own != null) return { c: img.own, tag: "", mode: "image" };
+    var l = lib(img.lib);
+    var f = filedShot(img.lib);
+    if (!f) return { c: l.c, tag: "", mode: "image" };
+    var ready = f.shot.status === "ready";
+    return { c: l.c, tag: "真人 · " + f.human.name, mode: ready && channelReady() ? "asset" : "image" };
+  }
+  function renderDrama() {
+    $("dramaChars").innerHTML = chars.map(function (c) {
+      var main = c.imgs[0] ? imgInfo(c.imgs[0]) : { c: 3, tag: "" };
+      var filed = c.imgs.some(function (i) { return imgInfo(i).tag; });
+      return '<div class="card click" data-char="' + c.id + '"><div class="thumb" style="background:' + bg(main.c) + '">' + esc(c.name.slice(0, 1)) +
+        (filed ? '<span class="corner status ok">真人素材</span>' : "") +
+        (c.imgs.length > 1 ? '<span class="stack">' + c.imgs.length + " 张</span>" : "") + "</div>" +
+        '<div class="body"><div class="name">' + esc(c.name) + '</div><div class="small muted">角色</div></div></div>';
+    }).join("");
+    $("dramaChars").querySelectorAll("[data-char]").forEach(function (el) {
+      el.onclick = function () { state.char = el.dataset.char; open("dlgChar"); renderCharDlg(); };
+    });
+
+    // 参考素材条：可用的备案图在渠道配好时以 asset:// 传，其余按普通图片传
+    var refChars = chars.filter(function (c) { return c.name === "迅哥儿" || c.name === "闰土"; });
+    $("refsBar").innerHTML = refChars.map(function (c) {
+      var asset = 0, image = 0, filedButOff = false;
+      c.imgs.forEach(function (i) {
+        var info = imgInfo(i);
+        if (info.mode === "asset") asset++; else image++;
+        if (info.tag && info.mode !== "asset") filedButOff = true;
+      });
+      var parts = [];
+      if (asset) parts.push('<span class="tag ok">素材引用 ×' + asset + "</span>");
+      if (image) parts.push('<span class="tag' + (filedButOff ? " warn" : "") + '">图片 ×' + image + (filedButOff && !channelReady() ? " · 渠道未配置虚拟人像库" : "") + "</span>");
+      var main = c.imgs[0] ? imgInfo(c.imgs[0]).c : 3;
+      return '<span class="chip"><span class="dot" style="background:' + bg(main) + '"></span>' + esc(c.name) + " " + parts.join(" ") + "</span>";
+    }).join("");
+  }
+
+  function slotHtml(img, index, isMain) {
+    var info = imgInfo(img);
+    return '<div class="slot" data-slot="' + index + '" style="background:' + bg(info.c) + '">' +
+      (isMain ? '<div class="thumb" style="background:transparent">' + esc(currentChar().name.slice(0, 1)) + "</div>" : esc(currentChar().name.slice(0, 1))) +
+      (info.tag ? '<span class="ftag">' + esc(info.tag) + "</span>" : "") +
+      '<button class="rm" data-rm="' + index + '" title="移除">✕</button></div>';
+  }
+  function currentChar() { return chars.find(function (x) { return x.id === state.char; }); }
+  function renderCharDlg() {
+    var c = currentChar();
+    if (!c || $("dlgChar").hidden) return;
+    $("charTitle").textContent = "角色卡 · " + c.name;
+    $("charName").textContent = c.name;
+    $("charStage").innerHTML = c.imgs[0]
+      ? slotHtml(c.imgs[0], 0, true)
+      : '<div class="thumb" data-slot="0" style="background:var(--chrome);color:var(--muted);font-size:14px;font-weight:400">＋ 主图</div>';
+    var ex = "";
+    for (var i = 1; i <= 4; i++) {
+      if (c.imgs[i]) ex += slotHtml(c.imgs[i], i, false);
+      else ex += '<div class="empty" data-slot="' + Math.min(i, c.imgs.length) + '"' + (c.imgs.length ? "" : ' title="先放一张主图"') + ">＋</div>";
+    }
+    $("charExtras").innerHTML = ex;
+
+    document.querySelectorAll("#charStage [data-slot], #charExtras [data-slot]").forEach(function (el) {
+      el.onclick = function (e) {
+        if (e.target.closest("[data-rm]")) return;
+        if (!c.imgs.length && Number(el.dataset.slot) > 0) return;
+        openShotPick(Number(el.dataset.slot));
+      };
+    });
+    document.querySelectorAll("#charStage [data-rm], #charExtras [data-rm]").forEach(function (b) {
+      b.onclick = function () { c.imgs.splice(Number(b.dataset.rm), 1); renderAll(); };
+    });
+  }
+  $("charPick").onclick = function () { openPicker(); };
+
+  // 从真人库引入：把这个真人可用的图依次放进主图和补充图，之后可以随意改
+  function openPicker() { state.pick = null; open("dlgPicker"); renderPicker(); }
+  function renderPicker() {
+    if (!humans.length) {
+      $("pickGrid").innerHTML = '<div class="muted small">真人库是空的，先到个人资产库把图片加入真人库</div>';
+      $("pickOk").disabled = true; return;
+    }
+    $("pickGrid").innerHTML = humans.map(function (h) {
+      var st = humanStatus(h);
+      var off = st !== "ready";
+      return '<div class="item' + (off ? " off" : "") + (state.pick === h.id ? " on" : "") + '" data-pick="' + h.id + '">' +
+        '<div class="thumb" style="background:' + bg(lib(h.shots[0].lib).c) + '">' + esc(h.name.slice(0, 1)) + "</div>" +
+        '<div class="cap"><span class="name">' + esc(h.name) + "</span>" +
+        (off ? '<span class="status ' + statusClass[st] + '">' + statusText[st] + "</span>" : '<span class="muted">' + readyShots(h).length + " 张</span>") + "</div></div>";
+    }).join("");
+    $("pickGrid").querySelectorAll("[data-pick]").forEach(function (el) {
+      el.onclick = function () { if (el.classList.contains("off")) return; state.pick = Number(el.dataset.pick); renderPicker(); };
+    });
+    $("pickOk").disabled = !state.pick;
+  }
+  $("pickOk").onclick = function () {
+    var c = currentChar();
+    var h = human(state.pick);
+    c.imgs = readyShots(h).slice(0, MAX_SHOTS).map(function (s) { return { lib: s.lib }; });
+    close("dlgPicker");
+    toast("已用「" + h.name + "」的 " + c.imgs.length + " 张图");
+    renderAll();
+  };
+
+  // 单个图位选图：真人库里可用的图，或个人资产库里的其他图
+  function openShotPick(slot) {
+    state.slot = slot; state.slotPick = null; state.slotSrc = "humans";
+    $("shotPickTitle").textContent = slot === 0 ? "选择主图" : "选择补充图";
+    open("dlgShotPick"); renderShotPick();
+  }
+  $("shotPickTabs").querySelectorAll("button").forEach(function (b) {
+    b.onclick = function () { state.slotSrc = b.dataset.src; state.slotPick = null; renderShotPick(); };
+  });
+  function renderShotPick() {
+    $("shotPickTabs").querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", b.dataset.src === state.slotSrc); });
+    var items = state.slotSrc === "humans"
+      ? humans.reduce(function (acc, h) { return acc.concat(h.shots.map(function (s) { return { lib: s.lib, cap: h.name, status: s.status }; })); }, [])
+      : library.filter(function (l) { return !ownerOf(l.id); }).map(function (l) { return { lib: l.id, cap: l.name, status: "ready" }; });
+    $("shotPickGrid").innerHTML = items.length ? items.map(function (it) {
+      var off = it.status !== "ready";
+      return '<div class="item' + (off ? " off" : "") + (state.slotPick === it.lib ? " on" : "") + '" data-sp="' + it.lib + '">' +
+        '<div class="thumb" style="background:' + bg(lib(it.lib).c) + '">' + initial(lib(it.lib).name) + "</div>" +
+        '<div class="cap"><span class="name">' + esc(it.cap) + "</span>" + (off ? '<span class="status ' + statusClass[it.status] + '">' + statusText[it.status] + "</span>" : "") + "</div></div>";
+    }).join("") : '<div class="muted small">没有可选的图片</div>';
+    $("shotPickGrid").querySelectorAll("[data-sp]").forEach(function (el) {
+      el.onclick = function () { if (el.classList.contains("off")) return; state.slotPick = Number(el.dataset.sp); renderShotPick(); };
+    });
+    $("shotPickOk").disabled = !state.slotPick;
+  }
+  $("shotPickOk").onclick = function () {
+    var c = currentChar();
+    var img = { lib: state.slotPick };
+    if (state.slot < c.imgs.length) c.imgs[state.slot] = img; else c.imgs.push(img);
+    close("dlgShotPick");
+    renderAll();
+  };
+
+  // ---------- 汇总渲染（备案状态变化会触发） ----------
+  function renderAll() {
+    renderFilter();
+    renderLibrary();
+    renderHumans();
+    renderHumanDlg();
+    if (!$("dlgEnroll").hidden) renderEnrollPick();
+    if (!$("dlgPicker").hidden) renderPicker();
+    renderChannel();
+    renderDrama();
+    renderCharDlg();
+  }
+  renderAll();
+})();
+</script>
+</body>
+</html>

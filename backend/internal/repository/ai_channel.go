@@ -57,11 +57,14 @@ func fillChannelJSONDefaults(c *model.AIChannel) {
 	if len(c.RateLimitJSON) == 0 {
 		c.RateLimitJSON = model.JSONText(emptyJSONObject)
 	}
+	if len(c.FilingJSON) == 0 {
+		c.FilingJSON = model.JSONText(emptyJSONObject)
+	}
 }
 
-// UpdateChannel 更新渠道的可变字段（name、base_url、headers_json、rate_limit_json、enabled、updated_by、updated_at）；
+// UpdateChannel 更新渠道的可变字段（name、base_url、headers_json、rate_limit_json、filing_json、enabled、updated_by、updated_at）；
 // key、sort 与 created_at 不变（顺序由 SetChannelOrder 独占）。渠道不存在返回 ErrNotFound。
-// headers_json / rate_limit_json 为空时按 {} 写入。成功后 c.UpdatedAt 已回填。
+// headers_json / rate_limit_json / filing_json 为空时按 {} 写入。成功后 c.UpdatedAt 已回填。
 func (r *AIChannelRepository) UpdateChannel(ctx context.Context, c *model.AIChannel) error {
 	fillChannelJSONDefaults(c)
 	now := time.Now()
@@ -70,6 +73,7 @@ func (r *AIChannelRepository) UpdateChannel(ctx context.Context, c *model.AIChan
 		"base_url":        c.BaseURL,
 		"headers_json":    c.HeadersJSON,
 		"rate_limit_json": c.RateLimitJSON,
+		"filing_json":     c.FilingJSON,
 		"enabled":         c.Enabled,
 		"updated_by":      c.UpdatedBy,
 		"updated_at":      now,
@@ -256,7 +260,7 @@ func channelModelRefs(rows []channelModelRefRow) []ChannelModelRef {
 }
 
 // DeleteChannel 在一个事务里删除渠道：锁住渠道行（FOR UPDATE）后重新统计引用，仍被模型或非终态任务引用时返回当时的引用与 ErrInUse；
-// 渠道不存在返回 ErrNotFound。删除时连同 ai_secrets 里它的 Key 与 Secret Key（channel:<key>、channel:<key>:secret）一起删掉，避免留下没有主人的凭证。
+// 渠道不存在返回 ErrNotFound。删除时连同 ai_secrets 里它的 Key、Secret Key 与虚拟人像库的 AK/SK 一起删掉，避免留下没有主人的凭证。
 func (r *AIChannelRepository) DeleteChannel(ctx context.Context, key string) (ChannelRefs, error) {
 	var refs ChannelRefs
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -278,7 +282,10 @@ func (r *AIChannelRepository) DeleteChannel(ctx context.Context, key string) (Ch
 		if err := tx.Where("key = ?", key).Delete(&model.AIChannel{}).Error; err != nil {
 			return err
 		}
-		return tx.Where("name IN ?", []string{model.ChannelSecretName(key), model.ChannelSecretKeyName(key)}).Delete(&model.AISecret{}).Error
+		return tx.Where("name IN ?", []string{
+			model.ChannelSecretName(key), model.ChannelSecretKeyName(key),
+			model.ChannelFilingAccessKeyName(key), model.ChannelFilingSecretKeyName(key),
+		}).Delete(&model.AISecret{}).Error
 	})
 	return refs, err
 }

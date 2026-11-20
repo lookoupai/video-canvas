@@ -76,6 +76,7 @@ const settings = (patch: Partial<PromptSettings> = {}): PromptSettings => ({
   assets: { source: "skill", skill: "cross", label: "技能 · 跨集连续性", missing: true },
   asset_prompts: { source: "mine", id: "1f", label: "我的 · 古风资产" },
   video: { source: "builtin", label: "内置" },
+  board: { source: "builtin", label: "内置" },
   ...patch,
 });
 
@@ -97,6 +98,16 @@ const library: PromptLibrary = {
       },
     ],
     video: [],
+    board: [
+      {
+        id: "2b",
+        step: "board",
+        name: "水彩分镜",
+        bodies: { board: "水彩风\n{{画面}}" },
+        revision: 1,
+        updatedAt: "t",
+      },
+    ],
   },
   skills: {
     plan: [],
@@ -104,6 +115,7 @@ const library: PromptLibrary = {
     assets: [{ name: "cross", title: "跨集连续性", description: "d" }],
     asset_prompts: [],
     video: [{ name: "tone", title: "镜头语气", description: "d" }],
+    board: [],
   },
   save: async () => {
     throw new Error("not used");
@@ -116,7 +128,7 @@ const dramaOf = (patch: Partial<Drama> = {}) =>
     id: "d1",
     sourceKind: "novel",
     promptSettings: settings(),
-    imageModels: { character: "", scene: "", prop: "" },
+    imageModels: { character: "", scene: "", prop: "", board: "" },
     textModel: "",
     episodes: [],
     ...patch,
@@ -162,6 +174,11 @@ describe("项目设置：纯逻辑", () => {
     ]);
   });
 
+  test("故事板的模型不算资产类型：只改它时没有资产类型变化", () => {
+    const saved = { character: "", scene: "img-a", prop: "", board: "" };
+    expect(changedImageModels(saved, { ...saved, board: "img-b" })).toEqual([]);
+  });
+
   test("把已建剧的设置转成可编辑的选择；比较出改了哪些环节", () => {
     const prompts = settingsToPrompts(settings());
     expect(prompts).toEqual({
@@ -170,6 +187,7 @@ describe("项目设置：纯逻辑", () => {
       assets: { source: "skill", skill: "cross" },
       asset_prompts: { source: "mine", id: "1f" },
       video: { source: "builtin" },
+      board: { source: "builtin" },
     });
     expect(changedSteps(settings(), prompts)).toEqual([]);
     expect(
@@ -210,7 +228,25 @@ describe("项目设置：弹窗内容", () => {
     await m.unmount();
   });
 
-  test("改了视频提示词的技能，点「完成」带上四个环节的选择一起保存", async () => {
+  test("故事板提示词一行：默认内置，下拉里有我的提示词和新建，没有技能；选了完成时只保存这一项的变化", async () => {
+    const patches: Omit<UpdateDramaInput, "revision">[] = [];
+    const m = await mountBody(dramaOf(), patches);
+    expect(chip(m.container, "故事板提示词").textContent).toBe("内置");
+    await dom.click(chip(m.container, "故事板提示词"));
+    await dom.flush();
+    const buttons = [...dom.win.document.body.querySelectorAll("button")];
+    expect(buttons.some((b) => (b.textContent ?? "").includes("新建"))).toBe(true);
+    expect(buttons.some((b) => (b.textContent ?? "").includes("镜头语气"))).toBe(false);
+    await dom.click(buttons.find((b) => (b.textContent ?? "").includes("水彩分镜")));
+    expect(chip(m.container, "故事板提示词").textContent).toBe("我的 · 水彩分镜");
+    await dom.click(byText(m.container, "完成"));
+    await dom.flush();
+    expect(patches).toHaveLength(1);
+    expect(patches[0].prompts?.board).toEqual({ source: "mine", id: "2b" });
+    await m.unmount();
+  });
+
+  test("改了视频提示词的技能，点「完成」带上六个环节的选择一起保存", async () => {
     const patches: Omit<UpdateDramaInput, "revision">[] = [];
     let closed = 0;
     const m = await mountBody(dramaOf(), patches, () => (closed += 1));
@@ -231,6 +267,7 @@ describe("项目设置：弹窗内容", () => {
           assets: { source: "skill", skill: "cross" },
           asset_prompts: { source: "mine", id: "1f" },
           video: { source: "skill", skill: "tone" },
+          board: { source: "builtin" },
         },
       },
     ]);
@@ -258,9 +295,32 @@ describe("项目设置：资产图片模型", () => {
     expect(byText(m.container, "人物 · img-b")).toBeTruthy();
     await dom.click(byText(m.container, "完成"));
     await dom.flush();
-    expect(patches).toEqual([{ imageModels: { character: "img-b", scene: "", prop: "" } }]);
+    expect(patches).toEqual([
+      { imageModels: { character: "img-b", scene: "", prop: "", board: "" } },
+    ]);
     expect(useModelSwitchStore.getState().byDrama.d1).toEqual({ character: "img-b" });
     useModelSwitchStore.setState({ byDrama: {} });
+    await m.unmount();
+  });
+
+  test("故事板一行：没选时显示场景图片模型；换了模型完成时保存，不会让资产卡换模型", async () => {
+    const patches: Omit<UpdateDramaInput, "revision">[] = [];
+    const m = await mountBody(
+      dramaOf({ imageModels: { character: "", scene: "img-b", prop: "", board: "" } }),
+      patches,
+    );
+    expect(byText(m.container, "故事板 · img-b")).toBeTruthy();
+    await dom.click(byText(m.container, "故事板 · img-b"));
+    await dom.flush();
+    await dom.click(menuRow("img-a"));
+    await dom.flush();
+    expect(byText(m.container, "故事板 · img-a")).toBeTruthy();
+    await dom.click(byText(m.container, "完成"));
+    await dom.flush();
+    expect(patches).toEqual([
+      { imageModels: { character: "", scene: "img-b", prop: "", board: "img-a" } },
+    ]);
+    expect(useModelSwitchStore.getState().byDrama.d1).toBeUndefined();
     await m.unmount();
   });
 });

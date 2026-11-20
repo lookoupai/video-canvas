@@ -579,6 +579,7 @@ const ACTION_LABEL: Record<string, string> = {
   "channel.update": "修改了渠道",
   "channel.secret": "设置了渠道 Key",
   "channel.secret_key": "设置了渠道 Secret Key",
+  "channel.filing_secret": "设置了渠道虚拟人像库密钥",
   "channel.sort": "调整了渠道顺序",
   "channel.enable": "启用 / 停用了渠道",
   "channel.auto_off": "自动停用了渠道",

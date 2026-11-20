@@ -48,6 +48,19 @@ const item = (
 });
 
 describe("资产分类：节点 -> 类型", () => {
+  test("故事板节点不是资产：不进资产列表的任何 tab", () => {
+    expect(
+      assetTypeOf({
+        kind: "image",
+        label: "故事板 · 第 1 集 · 01",
+        drama: {
+          episodes: [1],
+          board: { segmentId: "s1", sourceHash: "h", layout: "2x2", shotCount: 3 },
+        },
+      }),
+    ).toBeNull();
+  });
+
   test("drama.type 优先，其次按节点种类", () => {
     expect(
       assetTypeOf({ kind: "character", label: "a", drama: { type: "character", episodes: [] } }),

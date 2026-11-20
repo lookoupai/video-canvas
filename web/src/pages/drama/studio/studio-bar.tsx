@@ -1,4 +1,4 @@
-import { CloudAlert, CloudCheck, Loader2, MonitorPlay, RotateCw, Timer } from "lucide-react";
+import { CloudAlert, Loader2, MonitorPlay, RotateCw, Timer } from "lucide-react";
 
 import { ChipPopover, MenuLabel } from "@/components/drama/pickers";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,13 @@ import { useStoryboardStart } from "../workspace/storyboard-start";
 import { StoryboardBatchButton } from "../workspace/storyboard-batch-dialog";
 import { GenerateControls } from "./generate-controls";
 import type { SaveSummary } from "../workspace/use-workspace";
+import { StudioViewToggle } from "./view-toggle";
 import { useStudio } from "./use-studio";
 
-const SAVE_LABEL: Record<SaveSummary, { text: string; icon: React.ReactNode; tone?: string }> = {
-  saved: { text: "已保存", icon: <CloudCheck className="size-3.5" /> },
-  saving: { text: "保存中", icon: <Loader2 className="size-3.5 animate-spin" /> },
+/** 只在保存出了问题时显示；正常的「已保存 / 保存中」不放在顶部条上 */
+const SAVE_LABEL: Partial<
+  Record<SaveSummary, { text: string; icon: React.ReactNode; tone?: string }>
+> = {
   error: {
     text: "保存失败，将重试",
     icon: <CloudAlert className="size-3.5" />,
@@ -121,50 +123,56 @@ function SecondsChip() {
 const NO_JOBS: never[] = [];
 
 /**
- * 片场顶部条：集名、保存状态，右边是当前片段时长、分辨率、比例、「重新生成分镜脚本」，最右是视频模型和「立即生成」。
+ * 片场顶部条：左边是「列表 | 画布」切换（画布视图下只剩它）和保存出错时的状态（集名挪到右侧面板顶部了），右边是「批量生成脚本」、
+ * 「重新生成分镜脚本」，再往右是当前片段的时长、分辨率、比例，最右是视频模型和「立即生成」。
  * 合成整集挪到了「成片」页；这里只管把片段做出来。
  */
 export function StudioBar() {
-  const { drama, episode, no, save, video } = useStudio();
+  const { drama, episode, no, save, video, canvasEntry } = useStudio();
   const jobs = useDramaJobsStore((state) => state.byDrama[drama.id]) ?? NO_JOBS;
   const starter = useStoryboardStart(video.maxSeconds);
   const status = SAVE_LABEL[save];
   const blocked = jobConflictReason(jobs, "storyboard", [no]);
   return (
     <div className="border-border flex h-12 shrink-0 items-center gap-2 border-b px-4">
-      <h2 className="font-display min-w-0 truncate text-[17px] font-bold tracking-wide">
-        第 {no} 集 · {episode.title}
-      </h2>
-      <span
-        role="status"
-        className={cn(
-          "text-muted-foreground inline-flex items-center gap-1 text-xs max-sm:hidden",
-          status.tone,
-        )}
-      >
-        {status.icon}
-        {status.text}
-      </span>
-      <span className="flex-1" />
-      <div className="flex items-center gap-0.5 max-md:hidden">
-        <SecondsChip />
-        <ResolutionChip />
-        <span className="text-muted-foreground px-2 font-mono text-xs">
-          {drama.ratio || "比例未定"}
+      <StudioViewToggle />
+      {status && (
+        <span
+          role="status"
+          className={cn(
+            "text-muted-foreground inline-flex items-center gap-1 text-xs max-sm:hidden",
+            status.tone,
+          )}
+        >
+          {status.icon}
+          {status.text}
         </span>
-      </div>
-      <StoryboardBatchButton current={no} maxSeconds={video.maxSeconds} />
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="重新生成分镜脚本"
-        title={blocked ?? "重新生成分镜脚本（已有出视频的片段会先确认）"}
-        disabled={!!blocked || starter.pending === no}
-        onClick={() => void starter.start(episode)}
-      >
-        {starter.pending === no ? <Loader2 className="animate-spin" /> : <RotateCw />}
-      </Button>
-      <GenerateControls />
+      )}
+      <span className="flex-1" />
+      {/* 画布视图里用不上这些按钮，藏起来免得误点；只留左边的切换 */}
+      {canvasEntry.view === "list" && (
+        <>
+          <StoryboardBatchButton current={no} maxSeconds={video.maxSeconds} />
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="重新生成分镜脚本"
+            title={blocked ?? "重新生成分镜脚本（已有出视频的片段会先确认）"}
+            disabled={!!blocked || starter.pending === no}
+            onClick={() => void starter.start(episode)}
+          >
+            {starter.pending === no ? <Loader2 className="animate-spin" /> : <RotateCw />}
+          </Button>
+          <div className="flex items-center gap-0.5 max-md:hidden">
+            <SecondsChip />
+            <ResolutionChip />
+            <span className="text-muted-foreground px-2 font-mono text-xs">
+              {drama.ratio || "比例未定"}
+            </span>
+          </div>
+          <GenerateControls />
+        </>
+      )}
     </div>
   );
 }

@@ -50,10 +50,20 @@ module.exports = {
     apiVersion: 1,
     key: "xai",
     name: "xAI",
-    version: "1.1.0",
+    version: "1.1.1",
     vendor: "xai",
     description: "xAI Grok Imagine 视频：文生、图生、参考生视频，视频编辑与延长（异步）",
     auth: { type: "bearer" },
+    channelSettings: {
+      as: {
+        type: "enum",
+        label: "素材传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
+      },
+    },
     endpoints: {
       video: { mode: "async", method: "POST", path: "/v1/videos/generations" },
     },
@@ -61,15 +71,16 @@ module.exports = {
   },
 
   buildSubmitRequest: function (ctx) {
+    var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
     var input = ctx.input || {};
     var model = ctx.model.upstreamModel;
     var videos = isArray(input.videos) ? input.videos : [];
 
     if (videos.length > 0) {
       var action = input.video_action === "extend" ? "extend" : "edit";
-      return buildVideoInputRequest(action, input, model, videos[0]);
+      return buildVideoInputRequest(action, input, model, videos[0], referenceFormat);
     }
-    return buildGenerationRequest(input, model);
+    return buildGenerationRequest(input, model, referenceFormat);
   },
 
   parseSubmitResponse: function (ctx, resp) {
@@ -150,7 +161,7 @@ module.exports = {
 };
 
 // 文生 / 图生 / 参考生：POST /v1/videos/generations。时长与分辨率总是发，避免上游默认值变动。
-function buildGenerationRequest(input, model) {
+function buildGenerationRequest(input, model, referenceFormat) {
   var spec = VIDEO_MODELS[model];
   if (!spec) {
     throw new Error(model + " 不是受支持的 xAI 视频模型");
@@ -189,24 +200,28 @@ function buildGenerationRequest(input, model) {
     body.generate_audio = input.generate_audio;
   }
   if (imageMode) {
-    body.image = urlRef(images[0]);
+    body.image = urlRef(images[0], referenceFormat);
   } else if (images.length > 0) {
     if (images.length > MAX_REFERENCE_IMAGES) {
       throw new Error("参考图最多 " + MAX_REFERENCE_IMAGES + " 张");
     }
-    body.reference_images = images.map(urlRef);
+    body.reference_images = images.map(function (ref) {
+      return urlRef(ref, referenceFormat);
+    });
   }
   if (audios.length > 0) {
     if (audios.length > MAX_REFERENCE_AUDIOS) {
       throw new Error("参考音频最多 " + MAX_REFERENCE_AUDIOS + " 个");
     }
-    body.reference_audios = audios.map(urlRef);
+    body.reference_audios = audios.map(function (ref) {
+      return urlRef(ref, "url");
+    });
   }
   return { method: "POST", path: "/v1/videos/generations", json: body, timeout: 60 };
 }
 
 // 编辑 / 延长：只有 grok-imagine-video 接收视频输入；输出沿用输入视频的分辨率与画幅，所以不发这两项。
-function buildVideoInputRequest(action, input, model, videoRef) {
+function buildVideoInputRequest(action, input, model, videoRef, referenceFormat) {
   var spec = VIDEO_MODELS[model];
   if (!spec || !spec.videoInput) {
     throw new Error("视频编辑与延长只能用 grok-imagine-video");
@@ -215,7 +230,7 @@ function buildVideoInputRequest(action, input, model, videoRef) {
   if (!prompt) {
     throw new Error("prompt 不能为空");
   }
-  var body = { model: model, prompt: prompt, video: urlRef(videoRef) };
+  var body = { model: model, prompt: prompt, video: urlRef(videoRef, referenceFormat) };
   var path = "/v1/videos/edits";
   if (action === "extend") {
     path = "/v1/videos/extensions";
@@ -225,8 +240,8 @@ function buildVideoInputRequest(action, input, model, videoRef) {
 }
 
 // xAI 的素材字段都是 {url}；url 由宿主把文件引用换成自有存储的签名地址。
-function urlRef(ref) {
-  return { url: { __fileRef: ref, as: "url" } };
+function urlRef(ref, referenceFormat) {
+  return { url: { __fileRef: ref, as: referenceFormat } };
 }
 
 // 取整数，没填用默认值；超出范围或不是整数直接报错（由宿主记成插件级失败）。

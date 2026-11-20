@@ -19,7 +19,7 @@
  *   5. 图生图不需要 tags:["img2img"]。
  *
  * 用户输入（宿主按模型 capabilities 校验后传入）：
- *   prompt（必填）、op（t2i / i2i）、images（参考图，宿主换成签名 URL）、size、aspect_ratio / ratio、
+ *   prompt（必填）、op（t2i / i2i）、images（参考图，宿主按渠道设置转换）、size、aspect_ratio / ratio、
  *   n / count、seed；return_base64（可选）。
  *
  * 写法说明：goja 只保证 ES5.1 + 部分 ES6，所以用 var / function，不用可选链与空值合并。
@@ -30,17 +30,28 @@ module.exports = {
     apiVersion: 1,
     key: "agnes-image",
     name: "Agnes AI · 图片",
-    version: "1.0.0",
+    version: "1.0.1",
     vendor: "agnes",
     description: "Agnes AI 图片生成：文生图、图生图、多图合成（同步，支持 URL 与 base64）",
     auth: { type: "bearer" },
     endpoints: {
       image: { mode: "sync", method: "POST", path: "/v1/images/generations" },
     },
+    channelSettings: {
+      as: {
+        type: "enum",
+        label: "参考图传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
+      },
+    },
   },
 
   buildSubmitRequest: function (ctx) {
     var input = ctx.input || {};
+    var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
     var body = { model: ctx.model.upstreamModel };
     if (input.prompt !== undefined && input.prompt !== "") {
       body.prompt = String(input.prompt);
@@ -79,7 +90,7 @@ module.exports = {
     if (images.length > 0) {
       var refs = [];
       for (var i = 0; i < images.length; i++) {
-        refs.push({ __fileRef: images[i], as: "url" });
+        refs.push({ __fileRef: images[i], as: referenceFormat });
       }
       extra.image = refs;
     }

@@ -554,6 +554,7 @@ export function PromptEditor({
   disabled,
   onSubmit,
   large,
+  fill,
   autoFocus,
   mention,
   className,
@@ -567,6 +568,8 @@ export function PromptEditor({
   onSubmit: () => void;
   /** 放大编辑对话框里的那一个 */
   large?: boolean;
+  /** 撑满父级剩下的高度（父级是定高的纵向 flex）：框内自己滚动，不再按视口限高 */
+  fill?: boolean;
   autoFocus?: boolean;
   /** 不给就不能 @ */
   mention?: PromptMentionSource;
@@ -772,14 +775,22 @@ export function PromptEditor({
   return (
     <>
       <div
-        className={cn("relative", disabled && "opacity-60", templateHint && "prompt-tpl-hint")}
+        className={cn(
+          "relative",
+          fill && "flex min-h-0 flex-1 flex-col",
+          disabled && "opacity-60",
+          templateHint && "prompt-tpl-hint",
+        )}
         style={
           templateHint
             ? ({ "--tpl-hint": JSON.stringify(templateHint) } as CSSProperties)
             : undefined
         }
       >
-        <EditorContent editor={editor} />
+        <EditorContent
+          editor={editor}
+          className={fill ? "flex min-h-0 flex-1 flex-col" : undefined}
+        />
         {!value && (
           <span className="text-muted-foreground/70 pointer-events-none absolute inset-x-1 top-0 text-[15px] leading-[1.75]">
             {placeholder}

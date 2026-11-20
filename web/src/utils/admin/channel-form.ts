@@ -57,6 +57,12 @@ export type ChannelFormState = {
   maxConcurrency: string;
   /** 最大同时生成数，空表示不限 */
   maxRunning: string;
+  /** 是否启用虚拟人像库（方舟真人素材备案），只在编辑渠道时可改 */
+  filingEnabled: boolean;
+  /** 虚拟人像库的方舟素材组 ID */
+  filingGroupId: string;
+  /** 虚拟人像库的方舟项目名，空表示 default */
+  filingProjectName: string;
 };
 
 /** 新建渠道的空表单 */
@@ -69,6 +75,9 @@ export function emptyChannelForm(): ChannelFormState {
     rps: "",
     maxConcurrency: "",
     maxRunning: "",
+    filingEnabled: false,
+    filingGroupId: "",
+    filingProjectName: "",
   };
 }
 
@@ -88,6 +97,9 @@ export function channelFormFromView(view: ChannelView): ChannelFormState {
     rps: numText(view.rate_limit?.rps),
     maxConcurrency: numText(view.rate_limit?.max_concurrency),
     maxRunning: numText(view.rate_limit?.max_running),
+    filingEnabled: !!view.filing?.enabled,
+    filingGroupId: view.filing?.group_id ?? "",
+    filingProjectName: view.filing?.project_name ?? "",
   };
 }
 
@@ -175,7 +187,7 @@ const headerEntries = (headers: Record<string, string> | null | undefined) =>
 
 /**
  * 表单 → 请求体。新建用 create；编辑用 update（只含改过的字段，没改动时 changed=false）。
- * 错误键：name / baseUrl / headers / headers.<行号> / rps / maxConcurrency / maxRunning
+ * 错误键：name / baseUrl / headers / headers.<行号> / rps / maxConcurrency / maxRunning / filingGroupId
  * @param form 表单
  * @param original 编辑时的原渠道；新建不传
  */
@@ -196,6 +208,18 @@ export function buildChannelRequest(
   if ("error" in concurrency) errors.maxConcurrency = concurrency.error;
   const running = parseLimit(form.maxRunning, "最大同时生成数", true);
   if ("error" in running) errors.maxRunning = running.error;
+  const filing = {
+    enabled: form.filingEnabled,
+    group_id: form.filingGroupId.trim(),
+    project_name: form.filingProjectName.trim(),
+  };
+  if (original && filing.enabled && !filing.group_id) {
+    errors.filingGroupId = "启用虚拟人像库时必须填写素材组 ID";
+  }
+  if (filing.enabled && !errors.baseUrl && !isOfficialFilingHost(form.baseUrl)) {
+    errors.baseUrl =
+      "虚拟人像库只支持方舟 / BytePlus 官方地址（ark.cn-beijing.volces.com、ark.ap-southeast.bytepluses.com）";
+  }
 
   if (
     "error" in rps ||
@@ -237,6 +261,12 @@ export function buildChannelRequest(
   };
   if (JSON.stringify(rateLimit) !== JSON.stringify(originalLimit)) update.rate_limit = rateLimit;
   if (create.enabled !== !!original.enabled) update.enabled = create.enabled;
+  const originalFiling = {
+    enabled: !!original.filing?.enabled,
+    group_id: original.filing?.group_id ?? "",
+    project_name: original.filing?.project_name ?? "",
+  };
+  if (JSON.stringify(filing) !== JSON.stringify(originalFiling)) update.filing = filing;
   return { ok: true, create, update, changed: Object.keys(update).length > 0 };
 }
 
@@ -262,4 +292,44 @@ export function formatLoad(
   maxRunning: number | undefined,
 ): string {
   return `生成中 ${load?.running ?? 0}/${maxRunning || "不限"} · 排队 ${load?.waiting ?? 0}`;
+}
+
+/**
+ * 虚拟人像库的备案站点，规则与后端一致：Base URL 的域名带 byteplus 是 BytePlus 国际站，其余按方舟国内站。
+ * @param baseUrl 表单里的 Base URL
+ * @returns 站点名：cn-beijing / ap-southeast-1
+ */
+export function filingSiteOf(baseUrl: string): string {
+  let host = baseUrl;
+  try {
+    host = new URL(baseUrl.trim()).host || baseUrl;
+  } catch {
+    // 地址还没填完整，按原文判断
+  }
+  return host.toLowerCase().includes("byteplus") ? "ap-southeast-1" : "cn-beijing";
+}
+
+/** 虚拟人像库只对方舟官方渠道开放：国内站和 BytePlus 国际站各一个推理域名，与后端 provider.IsOfficialFilingHost 一致。 */
+const OFFICIAL_FILING_HOSTS = ["ark.cn-beijing.volces.com", "ark.ap-southeast.bytepluses.com"];
+
+/**
+ * Base URL 是不是方舟 / BytePlus 官方域名（整个域名相等，忽略大小写和端口）。
+ * @param baseUrl 表单里的 Base URL
+ */
+export function isOfficialFilingHost(baseUrl: string): boolean {
+  try {
+    return OFFICIAL_FILING_HOSTS.includes(new URL(baseUrl.trim()).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 渠道弹窗里要不要显示「虚拟人像库」开关：官方地址才显示；
+ * 已经启用的非官方渠道也留着开关，不然没法关掉。
+ * @param baseUrl 表单里的 Base URL
+ * @param filingEnabled 表单里的开关当前值
+ */
+export function showFilingSwitch(baseUrl: string, filingEnabled: boolean): boolean {
+  return filingEnabled || isOfficialFilingHost(baseUrl);
 }

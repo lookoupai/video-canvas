@@ -139,7 +139,7 @@ func (e *openaichatimageEnv) submit(t *testing.T, baseURL, model string, input m
 
 func TestOpenAIChatImagePrecheckAndMeta(t *testing.T) {
 	env := newOpenAIChatImageEnv(t)
-	if env.meta.Key != "openai-chat-image" || env.meta.Version != "1.2.0" || env.meta.Auth.Type != pluginmeta.AuthBearer || env.meta.Vendor != "openai" {
+	if env.meta.Key != "openai-chat-image" || env.meta.Version != "1.2.1" || env.meta.Auth.Type != pluginmeta.AuthBearer || env.meta.Vendor != "openai" {
 		t.Fatalf("meta 不符合预期：%+v", env.meta)
 	}
 	if len(env.meta.Endpoints) != 1 {

@@ -58,8 +58,8 @@ const pre = (patch: Partial<SourcePreflight> = {}): SourcePreflight => ({
 const library: PromptLibrary = {
   ready: true,
   templates: [],
-  mine: { plan: [], scripts: [], assets: [], asset_prompts: [], video: [] },
-  skills: { plan: [], scripts: [], assets: [], asset_prompts: [], video: [] },
+  mine: { plan: [], scripts: [], assets: [], asset_prompts: [], video: [], board: [] },
+  skills: { plan: [], scripts: [], assets: [], asset_prompts: [], video: [], board: [] },
   save: async () => {
     throw new Error("not used");
   },
@@ -184,6 +184,44 @@ describe("开拍设置：来源与基本规则", () => {
     expect(rowButton("分集剧本").disabled).toBe(true);
     await m.unmount();
   });
+
+  test("小说可输入自定义单集时长并联动预计集数及估算参数", async () => {
+    const submitted: CreateDramaInput[] = [];
+    const estimate = spyOn(service, "post").mockResolvedValue({
+      episodes_min: 12,
+      episodes_max: 18,
+      episodes_exact: false,
+      credits: 20,
+      minutes: 3,
+    } as never);
+    const m = await mountBody(pre(), async (input) => submitted.push(input));
+    await dom.click(byText(m.container, "60s/集"));
+    await dom.flush();
+    estimate.mockClear();
+    const customInput = [...dom.win.document.body.querySelectorAll("input")].find(
+      (input) => input.getAttribute("aria-label") === "自定义单集时长（秒）",
+    ) as HTMLInputElement;
+    expect(customInput).toBeTruthy();
+    await dom.type(customInput, "75");
+    await dom.flush();
+    expect(m.container.textContent).toContain("60s/集");
+    expect(estimate).not.toHaveBeenCalled();
+    await dom.click(byText(m.container, "60s/集") as HTMLButtonElement);
+    await dom.flush(400);
+    expect(m.container.textContent).toContain("75s/集");
+    const estimateCall = estimate.mock.calls.find(
+      ([path]) => path === "/drama-sources/tok/estimate",
+    );
+    expect(estimateCall).toBeTruthy();
+    expect(estimateCall?.[1]).toMatchObject({ episode_seconds: 75 });
+    expect(estimateCall?.[2]).toMatchObject({ silent: true });
+    expect(m.container.textContent).toContain("预计约 12–18 集");
+    await dom.click(startButton(m.container));
+    await dom.flush();
+    expect(submitted[0]?.episodeSeconds).toBe(75);
+    estimate.mockRestore();
+    await m.unmount();
+  });
 });
 
 describe("开拍设置：文本模型", () => {
@@ -267,6 +305,7 @@ describe("开拍设置：点「开始」建剧", () => {
         assets: { source: "builtin" },
         asset_prompts: { source: "builtin" },
         video: { source: "builtin" },
+        board: { source: "builtin" },
       },
     });
     await m.unmount();

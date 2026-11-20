@@ -99,6 +99,7 @@ type formField struct {
 type fileRef struct {
 	field string
 	as    string
+	filed bool // 插件声明这里接受上游素材引用：真人库里备案可用的图片换成 asset://
 }
 
 // partSpec 是 multipart 的一个文件部分。
@@ -402,8 +403,10 @@ func (o *operation) parseRefValue(value any, path string) (*fileRef, bool, error
 	if !exists {
 		return nil, false, nil
 	}
-	if len(obj) > 2 {
-		return nil, true, pluginFaultf("请求描述的 %s 文件引用含未知字段", path)
+	for k := range obj {
+		if k != "__fileRef" && k != "as" && k != "filed" {
+			return nil, true, pluginFaultf("请求描述的 %s 文件引用含未知字段", path)
+		}
 	}
 	field, ok := raw.(string)
 	if !ok {
@@ -424,7 +427,14 @@ func (o *operation) parseRefValue(value any, path string) (*fileRef, bool, error
 			return nil, true, pluginFaultf("请求描述的 %s.as 必须是 url / base64 / dataUrl", path)
 		}
 	}
-	return &fileRef{field: field, as: as}, true, nil
+	filed := false
+	if rawFiled, exists := obj["filed"]; exists {
+		var ok bool
+		if filed, ok = rawFiled.(bool); !ok {
+			return nil, true, pluginFaultf("请求描述的 %s.filed 必须是布尔值", path)
+		}
+	}
+	return &fileRef{field: field, as: as, filed: filed}, true, nil
 }
 
 // buildFormFields 解析 form / multipart.fields：值只能是字符串、数字、布尔或文件引用，null 的键被忽略。

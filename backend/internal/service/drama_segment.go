@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 
+	"video-canvas/internal/drama"
 	"video-canvas/internal/model"
 	"video-canvas/internal/pkg/errcode"
 	"video-canvas/internal/pkg/idcodec"
@@ -52,6 +53,8 @@ type DramaSegmentDeps struct {
 	Intents DramaSegmentIntentRepo
 	// ReferenceClips 将采用的原镜裁为无声视频，仅显式使用视频参考时需要。
 	ReferenceClips DramaReferenceClipper
+	// Canvas 片场生成故事板时读写短剧画布；为 nil 时不能生成故事板，也不回写故事板任务
+	Canvas DramaBoardCanvasRepo
 }
 
 // DramaSegmentService 管理片段编辑、真实任务结果与自动采用。
@@ -63,6 +66,7 @@ type DramaSegmentService struct {
 	adapter        DramaSegmentAdapter
 	intents        DramaSegmentIntentRepo
 	referenceClips DramaReferenceClipper
+	canvas         DramaBoardCanvasRepo
 	// adapting 是进程内的转写锁，键为「片段:格式」
 	adapting sync.Map
 }
@@ -73,7 +77,7 @@ func NewDramaSegmentService(d DramaSegmentDeps) *DramaSegmentService {
 	if bc == nil {
 		bc = ws.NopBroadcaster{}
 	}
-	return &DramaSegmentService{repo: d.Repo, tasks: d.Tasks, assets: d.Assets, bc: bc, adapter: d.Adapter, intents: d.Intents, referenceClips: d.ReferenceClips}
+	return &DramaSegmentService{repo: d.Repo, tasks: d.Tasks, assets: d.Assets, bc: bc, adapter: d.Adapter, intents: d.Intents, referenceClips: d.ReferenceClips, canvas: d.Canvas}
 }
 
 // List 校验用户项目后按顺序返回片段，并恢复漏处理的成功任务写回。
@@ -102,31 +106,37 @@ func (s *DramaSegmentService) List(ctx context.Context, userID, dramaID uint64, 
 	return out, nil
 }
 
-// Summary 返回某集片段数、成片总秒数和已采用数，计数之前恢复任务写回。
-func (s *DramaSegmentService) Summary(ctx context.Context, userID, episodeID uint64) (count, seconds, done int, err error) {
+// Summary 返回某集片段数、成片总秒数、已采用视频数和有新鲜故事板的片段数，计数之前恢复任务写回。
+// boards 是短剧画布上已出图的故事板（片段 ID → 出图时原稿的哈希，见 drama.BoardHashes），nil 表示不数故事板。
+func (s *DramaSegmentService) Summary(ctx context.Context, userID, episodeID uint64, boards map[string]string) (model.DramaSegmentStats, error) {
 	// 1. 使用集主键反查存活项目，沿用列表的归属和任务恢复规则。
+	var stats model.DramaSegmentStats
 	ep, err := s.repo.SegmentEpisode(ctx, userID, episodeID)
 	if err != nil {
-		return 0, 0, 0, dramaError(err)
+		return stats, dramaError(err)
 	}
 	views, err := s.List(ctx, userID, ep.DramaID, ep.No)
 	if err != nil {
-		return 0, 0, 0, err
+		return stats, err
 	}
-	// 2. 跟拍累计精确目标毫秒，普通片段沿用秒数；只对总时长取整，避免逐镜舍入抬高时长。
+	// 2. 跟拍累计目标毫秒，普通片段沿用秒数，只对总时长取整；已采用和新鲜故事板分别计数。
+	stats.Count = len(views)
 	var totalMs int64
-	for _, v := range views {
-		if v.Remake != nil && v.Remake.TargetDurationMs > 0 {
-			totalMs += v.Remake.TargetDurationMs
+	for i := range views {
+		if views[i].Remake != nil && views[i].Remake.TargetDurationMs > 0 {
+			totalMs += views[i].Remake.TargetDurationMs
 		} else {
-			totalMs += int64(v.Seconds) * 1000
+			totalMs += int64(views[i].Seconds) * 1000
 		}
-		// 已采用按 chosen_task_id 计数，不因后续失败 take 减少。
-		if v.ChosenTaskID != "" {
-			done++
+		if views[i].ChosenTaskID != "" {
+			stats.Done++
+		}
+		if hash, ok := boards[idcodec.Encode(uint64(views[i].ID))]; ok && hash == drama.SourceHash(views[i].Prompt) {
+			stats.Boards++
 		}
 	}
-	return len(views), int((totalMs + 999) / 1000), done, nil
+	stats.Seconds = int((totalMs + 999) / 1000)
+	return stats, nil
 }
 
 // episode 根据项目ID和集号定位，其他用户和父项目删除统一为短剧不存在。

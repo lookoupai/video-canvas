@@ -62,6 +62,7 @@ const form = (patch: Partial<StartForm> = {}): StartForm => ({
     assets: { source: "builtin" },
     asset_prompts: { source: "builtin" },
     video: { source: "builtin" },
+    board: { source: "builtin" },
   },
   ...patch,
 });
@@ -149,6 +150,7 @@ describe("开拍设置：建剧请求", () => {
           assets: { source: "skill", skill: "cross" },
           asset_prompts: { source: "builtin" },
           video: { source: "builtin" },
+          board: { source: "builtin" },
         },
       }),
     );
@@ -168,6 +170,7 @@ describe("开拍设置：建剧请求", () => {
         assets: { source: "skill", skill: "cross" },
         asset_prompts: { source: "builtin" },
         video: { source: "builtin" },
+        board: { source: "builtin" },
       },
     });
   });
@@ -186,6 +189,7 @@ describe("开拍设置：建剧请求", () => {
           assets: { source: "builtin" },
           asset_prompts: { source: "builtin" },
           video: { source: "builtin" },
+          board: { source: "builtin" },
         },
       }),
     );
@@ -204,6 +208,7 @@ describe("开拍设置：建剧请求", () => {
         assets: { source: "builtin" },
         asset_prompts: { source: "builtin" },
         video: { source: "builtin" },
+        board: { source: "builtin" },
       }).video,
     ).toEqual({ source: "builtin" });
   });
@@ -235,6 +240,13 @@ describe("开拍设置：记住上次选择", () => {
     expect(prefs && "rangeEnd" in prefs).toBe(false);
   });
 
+  test("自定义单集时长可存取，超出后端支持范围则回落默认", () => {
+    saveStartPrefs(form({ seconds: 75 }));
+    expect(loadStartPrefs()?.seconds).toBe(75);
+    store.set("drama-start-prefs", JSON.stringify({ seconds: 29 }));
+    expect(loadStartPrefs()?.seconds).toBe(60);
+  });
+
   test("损坏的存储当作没有；非法画幅回落 9:16", () => {
     store.set("drama-start-prefs", "{oops");
     expect(loadStartPrefs()).toBeNull();
@@ -253,6 +265,7 @@ describe("开拍设置：记住上次选择", () => {
       plan: { source: "skill", skill: "s1" },
       scripts: { source: "skill", skill: "s1" },
       video: { source: "builtin" },
+      board: { source: "builtin" },
     });
   });
 
@@ -275,6 +288,7 @@ describe("开拍设置：记住上次选择", () => {
         assets: { source: "skill", skill: "off" },
         asset_prompts: { source: "mine", id: "1f" },
         video: { source: "skill", skill: "on" },
+        board: { source: "mine", id: "gone" },
       },
       {
         plan: [],
@@ -282,13 +296,15 @@ describe("开拍设置：记住上次选择", () => {
         assets: [],
         asset_prompts: [{ id: "1f" }],
         video: [],
+        board: [],
       },
-      { plan: [], scripts: [], assets: [], asset_prompts: [], video: [{ name: "on" }] },
+      { plan: [], scripts: [], assets: [], asset_prompts: [], video: [{ name: "on" }], board: [] },
     );
     expect(next.plan).toEqual({ source: "builtin" });
     expect(next.assets).toEqual({ source: "builtin" });
     expect(next.asset_prompts).toEqual({ source: "mine", id: "1f" });
     expect(next.video).toEqual({ source: "skill", skill: "on" });
+    expect(next.board).toEqual({ source: "builtin" });
   });
 });
 

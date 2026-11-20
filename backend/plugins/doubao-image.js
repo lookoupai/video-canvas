@@ -20,7 +20,7 @@
  *
  * 用户输入（宿主按模型能力校验后传入）：
  *   prompt、op、size（如 2K 或 2048x2048）、resolution（没有 size 时当 size 用）、aspect_ratio（与 resolution 档位一起换算成 WxH；
- *   方舟没有单独的比例字段）、seed；images 作参考图（文件引用换成签名 URL，1 张传字符串，多张传数组）。n 被忽略：方舟没有单次张数，多张靠组图。
+ *   方舟没有单独的比例字段）、seed；images 作参考图（文件引用默认换成签名 URL，1 张传字符串，多张传数组）。n 被忽略：方舟没有单次张数，多张靠组图。
  *   水印固定为 false（方舟默认加水印）；output_format、sequential_image_generation、guidance_scale 这类型号特有字段、
  *   以及 tools、optimize_prompt_options、layer_decomposition 这类对象字段都不支持
  *
@@ -32,10 +32,20 @@ module.exports = {
     apiVersion: 1,
     key: "doubao-image",
     name: "豆包（火山方舟） · 图片",
-    version: "1.1.0",
+    version: "1.1.1",
     vendor: "volcengine",
     description: "火山引擎豆包 Seedream 图片生成（同步）",
     auth: { type: "bearer" },
+    channelSettings: {
+      as: {
+        type: "enum",
+        label: "素材传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
+      },
+    },
     endpoints: {
       image: { mode: "sync", method: "POST", path: "/api/v3/images/generations" },
     },
@@ -75,6 +85,7 @@ module.exports = {
 var PRESET_PIXELS = { "1K": 1048576, "1.5K": 2359296, "2K": 4194304, "3K": 9437184, "4K": 16777216 };
 
 function buildImageRequest(ctx) {
+  var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
   var input = ctx.input || {};
   var body = { model: ctx.model.upstreamModel, response_format: "url" };
   if (input.prompt !== undefined && String(input.prompt) !== "") {
@@ -82,11 +93,11 @@ function buildImageRequest(ctx) {
   }
   var images = isArray(input.images) ? input.images : [];
   if (images.length === 1) {
-    body.image = { __fileRef: images[0], as: "url" };
+    body.image = { __fileRef: images[0], as: referenceFormat };
   } else if (images.length > 1) {
     body.image = [];
     for (var i = 0; i < images.length; i++) {
-      body.image.push({ __fileRef: images[i], as: "url" });
+      body.image.push({ __fileRef: images[i], as: referenceFormat });
     }
   }
   var size = imageSize(input);

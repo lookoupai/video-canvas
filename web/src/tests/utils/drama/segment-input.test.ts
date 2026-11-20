@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import type { Capabilities } from "@/api/model/type";
 import type { NodeCharacter } from "@/types";
 import type { RefAsset } from "@/utils/drama/segment-assets";
+import { BOARD_LINE } from "@/utils/drama/board";
 import { planSegmentInput } from "@/utils/drama/segment-input";
 
 /** 角色卡节点自带的数据：补充图 2、音频音色 9（素材 id 在 payload 里是字符串） */
@@ -43,6 +44,22 @@ const scene = (id: string, patch: Partial<RefAsset> = {}): RefAsset => ({
   src: "https://cdn/s",
   mediaType: "image",
   assetId: "5",
+  generating: false,
+  ...patch,
+});
+
+/** 画布上的音频节点资产：没有形象图，只提供参考音频 */
+const audio = (id: string, patch: Partial<RefAsset> = {}): RefAsset => ({
+  id,
+  type: "audio",
+  name: "旁白",
+  look: "",
+  label: "旁白",
+  episodes: [],
+  kind: "audio",
+  src: "https://cdn/a",
+  mediaType: "audio",
+  assetId: "24",
   generating: false,
   ...patch,
 });
@@ -128,6 +145,93 @@ describe("planSegmentInput：@ 解析与参考素材组装（契约 §13）", ()
     });
     expect(plan.input.audios).toBeUndefined();
     expect(plan.refs[0].voice).toBe("none");
+  });
+
+  test("音频资产 @ 后作为参考音频提交；没有参考图时退回全能参考，不报缺参考素材", () => {
+    const plan = planSegmentInput({
+      ...base,
+      caps: video(),
+      prompt: "旁白用@[旁白](a1)的音色",
+      assets: [audio("a1")],
+    });
+    expect(plan.op).toBe("omni");
+    expect(plan.input.audios).toEqual([24]);
+    expect(plan.input.prompt).toBe("旁白用音频1的音色");
+    expect(plan.refs[0]).toMatchObject({ id: "a1", state: "audio", imageCount: 0 });
+    expect(plan.errors).toEqual({});
+  });
+
+  test("音频和角色卡同时引用：音频在前占音频1，角色声音排在后面", () => {
+    const plan = planSegmentInput({
+      ...base,
+      caps: video(),
+      prompt: "@[林川](n1)看着窗外。旁白用@[旁白](a1)的音色",
+      assets: [character("n1"), audio("a1")],
+    });
+    expect(plan.input.audios).toEqual([24, 9]);
+    expect(plan.input.prompt).toContain("旁白用音频1的音色");
+    expect(plan.input.prompt).toContain("林川（图片1中的人物）说话时，音色参考音频2。");
+  });
+
+  test("音频节点还没有素材：不当参考音频，标成只用文字", () => {
+    const caps = video();
+    caps.params.generate_audio = {
+      type: "boolean",
+      label: "生成音频",
+      open: true,
+      default: false,
+    };
+    const plan = planSegmentInput({
+      ...base,
+      caps,
+      prompt: "旁白用@[旁白](a1)的音色",
+      assets: [audio("a1", { src: null, assetId: undefined })],
+    });
+    expect(plan.input.audios).toBeUndefined();
+    expect(plan.refs[0]).toMatchObject({ state: "text" });
+    expect(plan.op).toBe("t2v");
+    // 音频没带进请求，就不能因为默认关声音而拦下这个纯文字片段
+    expect(plan.errors.generate_audio).toBeUndefined();
+  });
+
+  test("模型不支持参考音频：@ 了旁白就阻止提交，不静默丢掉音色", () => {
+    const plan = planSegmentInput({
+      ...base,
+      caps: video({ ops: ["t2v", "i2v"] }),
+      prompt: "旁白用@[旁白](a1)的音色",
+      assets: [audio("a1")],
+    });
+    expect(plan.input.audios).toBeUndefined();
+    expect(plan.errors.audios).toBeTruthy();
+  });
+
+  test("模型支持全能参考但没开参考音频：旁白同样阻止提交", () => {
+    const plan = planSegmentInput({
+      ...base,
+      caps: video({ audio: false }),
+      prompt: "@[村口](n2)，旁白用@[旁白](a1)的音色",
+      assets: [scene("n2"), audio("a1")],
+    });
+    expect(plan.input.audios).toBeUndefined();
+    expect(plan.errors.audios).toBeTruthy();
+  });
+
+  test("带独立旁白音频时关闭声音生成：报错要求开启", () => {
+    const caps = video();
+    caps.params.generate_audio = {
+      type: "boolean",
+      label: "生成音频",
+      open: true,
+      default: true,
+    };
+    const plan = planSegmentInput({
+      ...base,
+      caps,
+      overrides: { generate_audio: false },
+      prompt: "旁白用@[旁白](a1)的音色",
+      assets: [audio("a1")],
+    });
+    expect(plan.errors.generate_audio).toBeTruthy();
   });
 
   test("声音仍在生成时阻止片段提交，失败后可复用已经绑定的声音", () => {
@@ -287,5 +391,118 @@ describe("planSegmentInput：时长与校验", () => {
       assets: [],
     });
     expect(plan.input).toEqual({});
+  });
+});
+
+describe("planSegmentInput：故事板作为第一张参考图", () => {
+  const assets = [character("n1"), scene("n2")];
+  const board = { assetId: "31", src: "https://cdn/31.png", stale: false };
+
+  test("故事板、旁白与原镜仿拍同时带入，并覆盖成片裁剪窗口", () => {
+    const caps = video();
+    caps.refs!.video = { on: true, max: 1, max_mb: 20 };
+    const plan = planSegmentInput({
+      ...base,
+      caps,
+      seconds: 3,
+      prompt: "@[旁白](narrator) 在海边说话",
+      assets: [audio("narrator")],
+      board,
+      remake: { targetDurationMs: 2500, trimStartMs: 2500, referenceVideoAssetId: "4" },
+    });
+    expect(plan.errors).toEqual({});
+    expect(plan.op).toBe("omni");
+    expect(plan.input.images).toEqual([31]);
+    expect(plan.input.audios).toEqual([24]);
+    expect(plan.input.videos).toEqual([4]);
+    expect(plan.input.duration).toBe(5);
+    expect(plan.input.prompt).toContain(BOARD_LINE);
+  });
+  const prompt = "@[林川](n1)走进@[村口](n2)";
+
+  test("有故事板：排在参考图第一张，提示词开头加说明行，其余引用从图片2起编号", () => {
+    const plan = planSegmentInput({ ...base, caps: video(), prompt, assets, board });
+    expect(plan.op).toBe("omni");
+    expect(plan.input.images).toEqual([31, 5, 1, 2]);
+    expect(plan.input.prompt).toStartWith(`${BOARD_LINE}\n林川（图片3中的人物）走进图片2`);
+    expect(plan.board).toEqual({ state: "image", reason: "" });
+    expect(plan.errors).toEqual({});
+    expect(plan.imageCount).toBe(4);
+    // 参考素材条只列提示词里的资产，故事板单独显示
+    expect(plan.refs.map((ref) => ref.id)).toEqual(["n1", "n2"]);
+  });
+
+  test("没有引用任何资产也能带故事板：从文生视频变成全能参考", () => {
+    const plan = planSegmentInput({
+      ...base,
+      caps: video(),
+      prompt: "一个人走进村口",
+      assets,
+      board,
+    });
+    expect(plan.op).toBe("omni");
+    expect(plan.input.images).toEqual([31]);
+    const without = planSegmentInput({ ...base, caps: video(), prompt: "一个人走进村口", assets });
+    expect(without.op).toBe("t2v");
+    expect(without.input.images).toBeUndefined();
+  });
+
+  test("故事板过期：照样带上，并提示已过期", () => {
+    const plan = planSegmentInput({
+      ...base,
+      caps: video(),
+      prompt,
+      assets,
+      board: { ...board, stale: true },
+    });
+    expect((plan.input.images as number[])[0]).toBe(31);
+    expect(plan.board.state).toBe("stale");
+    expect(plan.notices).toContain("故事板已过期，原稿在出图之后改过");
+  });
+
+  test("只有图生视频的模型会把第一张图当首帧：不带故事板", () => {
+    const plan = planSegmentInput({
+      ...base,
+      caps: video({ ops: ["t2v", "i2v"] }),
+      prompt,
+      assets,
+      board,
+    });
+    expect(plan.op).toBe("i2v");
+    expect(plan.input.images).not.toContain(31);
+    expect(plan.input.prompt).not.toContain(BOARD_LINE);
+    expect(plan.board).toEqual({
+      state: "unsupported",
+      reason: "当前模型把第一张图当首帧，故事板未带入",
+    });
+  });
+
+  test("只能文生视频的模型：不带故事板", () => {
+    const plan = planSegmentInput({
+      ...base,
+      caps: video({ ops: ["t2v"] }),
+      prompt: "走进村口",
+      assets,
+      board,
+    });
+    expect(plan.input.images).toBeUndefined();
+    expect(plan.board).toEqual({
+      state: "unsupported",
+      reason: "当前模型不收参考图，故事板未带入",
+    });
+  });
+
+  test("本次关掉故事板：不带，和没有故事板时一样组装", () => {
+    const off = planSegmentInput({ ...base, caps: video(), prompt, assets, board, boardOff: true });
+    const none = planSegmentInput({ ...base, caps: video(), prompt, assets });
+    expect(off.input).toEqual(none.input);
+    expect(off.board).toEqual({ state: "off", reason: "本次已关掉故事板" });
+    expect(none.board).toEqual({ state: "none", reason: "" });
+  });
+
+  test("带上故事板后超出参考图上限：故事板仍在第一张，报错提示可以关掉故事板", () => {
+    const plan = planSegmentInput({ ...base, caps: video({ max: 2 }), prompt, assets, board });
+    expect((plan.input.images as number[])[0]).toBe(31);
+    expect(plan.errors.images).toContain("关掉故事板");
   });
 });

@@ -55,6 +55,8 @@ func (s *AIChannelService) Delete(ctx context.Context, actorID uint64, key strin
 	aiAudit(ctx, s.audit, actorID, model.AuditChannelDelete, model.AuditTargetChannel, key, nil)
 	s.secrets.ForgetSecret(model.ChannelSecretName(key))
 	s.secrets.ForgetSecret(model.ChannelSecretKeyName(key))
+	s.secrets.ForgetSecret(model.ChannelFilingAccessKeyName(key))
+	s.secrets.ForgetSecret(model.ChannelFilingSecretKeyName(key))
 	s.notifyChanged(ctx, "channel delete "+key)
 	return nil
 }

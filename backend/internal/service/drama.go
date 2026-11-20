@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"video-canvas/internal/agent/canvasgraph"
 	"video-canvas/internal/drama"
 	"video-canvas/internal/llmgateway"
 	"video-canvas/internal/model"
@@ -44,7 +45,12 @@ type DramaCanvasWriter interface {
 	ApplyPrompts(context.Context, uint64, uint64, uint64, string, []drama.AssetPrompt, []DramaCanvasAsset, int) error
 	// DeleteEpisode 删一集、后面的集补位，并改写资产画布上的出现集数（userID, dramaID, canvasID, no）。
 	DeleteEpisode(context.Context, uint64, uint64, uint64, int) error
+	// SyncBoards 让一集的故事板节点和片段对上：每个片段一个节点（没有就建空的），片段已经没了的节点清掉（userID, canvasID, no）。
+	SyncBoards(context.Context, uint64, uint64, int, []DramaBoardSegment) error
 }
+
+// DramaBoardSegment 是一个片段在画布上的故事板要用的信息（分镜成功后同步节点用）。
+type DramaBoardSegment = canvasgraph.BoardSegment
 
 // DramaCoverReader 读取短剧资产画布的封面素材：画布里第一张生成成功的图（canvas_projects.cover_asset_id）。
 type DramaCoverReader interface {
@@ -66,8 +72,9 @@ type DramaStoryboardCanvasReader interface {
 
 // DramaSegmentSummary 提供片段工作区的实时聚合。
 type DramaSegmentSummary interface {
-	// Summary 返回集的片段数、总秒数和已有采用视频的片段数。
-	Summary(context.Context, uint64, uint64) (count, seconds, done int, err error)
+	// Summary 返回集的片段数、总秒数、已有采用视频的片段数和有新鲜故事板的片段数；
+	// 最后一个参数是画布上已出图的故事板（片段 ID → 出图时原稿的哈希），nil 不数故事板。
+	Summary(context.Context, uint64, uint64, map[string]string) (model.DramaSegmentStats, error)
 }
 
 // DramaModelStreamer 向 Agent 模型的渠道发一次对话请求（*llmgateway.Gateway 实现它）。
@@ -240,8 +247,13 @@ func (s *DramaService) Get(ctx context.Context, userID, id uint64) (*model.Drama
 		return nil, err
 	}
 	v := &model.DramaView{SourceChars: p.SourceChars, UnitsTotal: p.UnitsTotal, UnitKind: p.UnitKind, Phase: p.Phase, PlanCursor: p.PlanCursor, RangeEnd: p.RangeEnd, PauseReason: p.PauseReason, PauseCode: p.PauseCode, PromptSettings: settings, ID: idcodec.ID(p.ID), Title: p.Title, CanvasID: idcodec.ID(p.CanvasID), Status: p.Status, SourceKind: p.SourceKind, Genre: p.Genre, StyleKey: p.StyleKey, StyleCustom: p.StyleCustom, Ratio: p.Ratio, TargetEpisodes: p.TargetEpisodes, EpisodeSeconds: p.EpisodeSeconds, TextModel: p.TextModel, VideoModel: p.VideoModel, ImageModels: dramaImageModels(p), ImageParams: dramaImageParams(p), OutlineMD: p.OutlineMD, CharactersMD: p.CharactersMD, Revision: p.Revision, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt, Episodes: []model.DramaEpisodeSummary{}, ActiveJobs: []model.DramaJobView{}}
+	// 故事板在短剧画布上：读一次画布，各集共用
+	boards, err := s.boardHashes(ctx, p.UserID, p.CanvasID)
+	if err != nil {
+		return nil, err
+	}
 	for _, e := range eps {
-		summary, err := s.dramaEpisodeView(ctx, e)
+		summary, err := s.episodeViewWith(ctx, e, boards)
 		if err != nil {
 			return nil, err
 		}
@@ -486,15 +498,45 @@ func episodeView(e model.DramaEpisode) model.DramaEpisodeView {
 	return model.DramaEpisodeView{DramaEpisodeSummary: model.DramaEpisodeSummary{No: e.No, Hook: e.Hook, Cliffhanger: e.Cliffhanger, UnitFrom: e.UnitFrom, UnitTo: e.UnitTo, Title: e.Title, Synopsis: e.Synopsis, ScriptStatus: e.ScriptStatus, StoryboardStatus: status, Locked: e.LockedAt != nil, Revision: e.Revision, UpdatedAt: e.UpdatedAt}, ScriptMD: e.ScriptMD}
 }
 
-// dramaEpisodeView 在基础状态上映射实时片段聚合，避免持久化重复计数。
+// dramaEpisodeView 读一次画布上的故事板，再映射单集的实时聚合。
 func (s *DramaService) dramaEpisodeView(ctx context.Context, ep model.DramaEpisode) (*model.DramaEpisodeView, error) {
+	var boards map[string]string
+	if s.segments != nil && s.canvasAssets != nil {
+		p, err := s.repo.Project(ctx, ep.UserID, ep.DramaID, false)
+		if err != nil {
+			return nil, dramaError(err)
+		}
+		if boards, err = s.boardHashes(ctx, ep.UserID, p.CanvasID); err != nil {
+			return nil, err
+		}
+	}
+	return s.episodeViewWith(ctx, ep, boards)
+}
+
+// boardHashes 读短剧画布里已出图的故事板；没接画布读取或画布不存在时为空，不挡集摘要。
+func (s *DramaService) boardHashes(ctx context.Context, userID, canvasID uint64) (map[string]string, error) {
+	if s.canvasAssets == nil || s.segments == nil {
+		return nil, nil
+	}
+	canvas, err := s.canvasAssets.GetByID(ctx, userID, canvasID)
+	if errors.Is(err, repository.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return drama.BoardHashes(canvas.PayloadJSON)
+}
+
+// episodeViewWith 在基础状态上映射实时片段聚合，避免持久化重复计数。
+func (s *DramaService) episodeViewWith(ctx context.Context, ep model.DramaEpisode, boards map[string]string) (*model.DramaEpisodeView, error) {
 	v := episodeView(ep)
 	if s.segments != nil {
-		var err error
-		v.SegmentCount, v.SegmentSeconds, v.DoneSegmentCount, err = s.segments.Summary(ctx, ep.UserID, ep.ID)
+		stats, err := s.segments.Summary(ctx, ep.UserID, ep.ID, boards)
 		if err != nil {
 			return nil, err
 		}
+		v.SegmentCount, v.SegmentSeconds, v.DoneSegmentCount, v.DoneBoardCount = stats.Count, stats.Seconds, stats.Done, stats.Boards
 	}
 	if ep.FinalAssetID != nil && s.assets != nil {
 		var err error

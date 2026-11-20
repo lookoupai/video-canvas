@@ -13,10 +13,13 @@ import {
   Type,
   Upload,
   UserRound,
+  UserRoundCheck,
+  UserRoundPlus,
   Video,
   type LucideIcon,
 } from "lucide-react";
 
+import type { VirtualHumanDto } from "@/api/virtual-human/type";
 import { MediaPreview } from "@/components/canvas/media-preview";
 import { DramaPoster } from "@/components/drama/poster";
 import { Button } from "@/components/ui/button";
@@ -24,6 +27,7 @@ import { DURATION, STAGGER, STAGGER_MAX, TAP_CARD } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { canFillNode } from "@/utils/canvas/fill-upload";
 import { assetUploaded, type AssetItem, type AssetType } from "@/utils/drama/assets";
+import { FILING_LABEL } from "@/utils/virtual-human/virtual-human";
 
 export const TYPE_ICON: Record<AssetType, LucideIcon> = {
   character: UserRound,
@@ -66,8 +70,8 @@ function DoneCover({ item }: { item: AssetItem }) {
   return <DramaPoster seed={item.name + item.look} className="absolute inset-0" />;
 }
 
-/** 空状态里的一块说明（待生成 / 生成中 / 失败） */
-function EmptyFrame({
+/** 空状态里的一块说明（待生成 / 生成中 / 失败）；故事板卡也用 */
+export function EmptyFrame({
   tone = "idle",
   children,
 }: {
@@ -88,9 +92,13 @@ function EmptyFrame({
   );
 }
 
-/** 分段胶囊里的一段：透明底，悬停提亮（同 ChromeSegment） */
-const SEGMENT_CLASS =
+/** 分段胶囊里的一段：透明底，悬停提亮（同 ChromeSegment）；故事板卡也用 */
+export const SEGMENT_CLASS =
   "hover:bg-chrome-hover text-foreground focus-visible:ring-ring/60 inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full text-xs transition-colors duration-150 outline-none focus-visible:ring-2 [&_svg]:size-3.5 [&_svg]:shrink-0";
+
+/** 贴在封面底部、悬停卡片（group/card）时浮出的半透明分段胶囊；触屏一直显示。故事板卡也用 */
+export const HOVER_PILL_CLASS =
+  "bg-chrome ring-chrome-border flex translate-y-1.5 items-center gap-0.5 rounded-full p-1 opacity-0 shadow-lg ring-1 backdrop-blur-xl backdrop-saturate-150 transition-[opacity,translate] duration-150 ease-out will-change-[opacity,translate] group-hover/card:translate-y-0 group-hover/card:opacity-100 group-hover/card:duration-200 focus-within:translate-y-0 focus-within:opacity-100 focus-within:duration-200 motion-reduce:transition-none [@media(hover:none)]:translate-y-0 [@media(hover:none)]:opacity-100";
 
 /**
  * 空卡的上传入口：贴在封面底部的半透明分段胶囊（coding-standards 6.1），左上传、右素材库。
@@ -107,7 +115,7 @@ function FillActions({
     <div className="absolute inset-x-2.5 bottom-2.5 z-20">
       {/* 淡入淡出加在带模糊的这一层上：祖先半透明会让 backdrop-blur 失效，淡出一开始模糊就突然没了，看着像卡顿。
           退出 150ms，约为进入 200ms 的 70% */}
-      <div className="bg-chrome ring-chrome-border flex translate-y-1.5 items-center gap-0.5 rounded-full p-1 opacity-0 shadow-lg ring-1 backdrop-blur-xl backdrop-saturate-150 transition-[opacity,translate] duration-150 ease-out will-change-[opacity,translate] group-hover/card:translate-y-0 group-hover/card:opacity-100 group-hover/card:duration-200 focus-within:translate-y-0 focus-within:opacity-100 focus-within:duration-200 motion-reduce:transition-none [@media(hover:none)]:translate-y-0 [@media(hover:none)]:opacity-100">
+      <div className={HOVER_PILL_CLASS}>
         <button type="button" className={SEGMENT_CLASS} onClick={onUpload}>
           <Upload />
           上传
@@ -141,6 +149,7 @@ export function AssetCard({
   onEditCharacter,
   onUpload,
   onPickLibrary,
+  enroll,
 }: {
   item: AssetItem;
   index: number;
@@ -156,6 +165,11 @@ export function AssetCard({
   onUpload?: () => void;
   /** 从素材库选一个放进这张空卡 */
   onPickLibrary?: () => void;
+  /**
+   * 角色形象图加入真人库：只有已有形象图、且管理员配置了虚拟人像库（或图片已在真人库）时才传。
+   * human 是图片已经所在的真人，这时只显示状态，不能重复加入。
+   */
+  enroll?: { human: VirtualHumanDto | null; onEnroll: () => void };
 }) {
   const Icon = TYPE_ICON[item.type];
   const uploaded = assetUploaded(item.data);
@@ -269,6 +283,7 @@ export function AssetCard({
             {item.name}
             {item.look && <span className="text-muted-foreground font-normal"> · {item.look}</span>}
           </div>
+          {enroll && <EnrollButton name={item.name} enroll={enroll} />}
           {generated && (
             <Button
               variant="ghost"
@@ -313,6 +328,55 @@ export function AssetCard({
         </div>
       </div>
     </motion.div>
+  );
+}
+
+/** 备案状态对应的图标颜色 */
+const ENROLLED_TONE = {
+  pending: "text-amber-500",
+  active: "text-emerald-500",
+  failed: "text-destructive",
+} as const;
+
+/**
+ * 卡片名字旁的真人库按钮：没加入时点了打开「加入真人库」；已加入时换成带状态颜色的图标，悬停看所属真人和备案状态。
+ * @param name 资产名，读屏用
+ * @param enroll 所在真人与加入回调
+ */
+function EnrollButton({
+  name,
+  enroll,
+}: {
+  name: string;
+  enroll: { human: VirtualHumanDto | null; onEnroll: () => void };
+}) {
+  const { human } = enroll;
+  if (human) {
+    const label = `已在真人库「${human.name}」· ${FILING_LABEL[human.status]}`;
+    return (
+      <span
+        role="img"
+        aria-label={label}
+        title={label}
+        className={cn(
+          "grid size-6 place-items-center [&_svg]:size-3.5",
+          ENROLLED_TONE[human.status],
+        )}
+      >
+        <UserRoundCheck />
+      </span>
+    );
+  }
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      aria-label={`把 ${name} 的形象加入真人库`}
+      title="加入真人库"
+      onClick={enroll.onEnroll}
+    >
+      <UserRoundPlus />
+    </Button>
   );
 }
 

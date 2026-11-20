@@ -53,6 +53,8 @@ var promptTemplates = map[string]string{
 	// 片场把 Seedance 原稿转写成其他平台写法；输入是单个片段，输出只有 prompt
 	"adapt_h3":      loadPrompt("adapt_h3"),
 	"adapt_generic": loadPrompt("adapt_generic"),
+	// 故事板宫格图：不经过文本模型，前端把片段原稿填进占位符后直接交给图片模型
+	"board": loadPrompt("board"),
 }
 
 // PromptFormat 取值：视频模型能力里的 prompt_format，空串或未知值都按通用处理。
