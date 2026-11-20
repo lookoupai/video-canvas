@@ -112,6 +112,8 @@ meta: {
 - `as: "base64"`：文件内容的标准 base64（字符串）；
 - `as: "dataUrl"`：`data:<mime>;base64,<...>`。
 
+可选的 `"filed": true` 声明这个位置接受上游素材引用：素材在用户的真人库里、在任务所走的渠道下备案可用时，宿主直接替换成 `asset://<方舟素材 ID>`（不读文件），否则照常按 `as` 替换。只对 `url` / `dataUrl` 生效；目前只有方舟（豆包视频）的参考图使用，其他插件不要写。
+
 `multipart.parts[].fileRef` 是文件引用（字符串 `"input:<数组名>.<下标>"`，如 `input:images.0`），宿主流式上传文件内容；`filename` 可选。`base64` / `dataUrl` 会把文件读进内存，受 `media_inline_max_bytes`（默认 10MB）限制。引用必须指向 `ctx.input` 里已填写的参考素材；宿主校验素材归属当前任务用户。
 
 **宿主对请求描述的校验**（任一不通过就是 `terminal` + 插件级失败，不发请求）：

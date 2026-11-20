@@ -111,9 +111,29 @@ export function adaptState(segment: Segment, format: AdaptFormat, promptHash: st
   return adaptation.sourceHash === promptHash ? "fresh" : "stale";
 }
 
-/** 这个格式下要提交的文字：Seedance 交原稿，其他交转写稿（没有为空串） */
-export function submitText(segment: Segment, format: TargetFormat): string {
-  if (format === "seedance") return segment.prompt;
+/** 提示词面板上选的标签：原稿 / 转写 */
+export type PromptView = "source" | "adapted";
+
+/**
+ * 此刻用哪份文字生成：视频模型本身吃 Seedance 原稿时只有原稿；否则**选了哪个标签就用哪份**——
+ * 选「原稿」用原稿（不转写也能生成），选「转写」用转写稿。还没手动选过时同面板的默认：有转写稿看转写，没有看原稿。
+ * @param format 视频模型要的提示词格式
+ * @param picked 提示词面板上手动选的标签；没选过为 null
+ * @param segment 片段
+ */
+export function effectiveView(
+  format: TargetFormat,
+  picked: PromptView | null,
+  segment: Segment,
+): PromptView {
+  if (format === "seedance") return "source";
+  if (picked) return picked;
+  return segment.adaptations[format] ? "adapted" : "source";
+}
+
+/** 按此刻用的那份文字取内容：用原稿交原稿，用转写交转写稿（没有为空串）；视频模型是 Seedance 时永远交原稿 */
+export function submitTextFor(segment: Segment, format: TargetFormat, view: PromptView): string {
+  if (format === "seedance" || view === "source") return segment.prompt;
   return segment.adaptations[format]?.prompt ?? "";
 }
 

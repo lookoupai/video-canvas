@@ -41,10 +41,20 @@ module.exports = {
     apiVersion: 1,
     key: "hailuo",
     name: "MiniMax 海螺",
-    version: "1.1.0",
+    version: "1.1.1",
     vendor: "minimax",
     description: "对接 MiniMax 海螺视频：文生视频、图生视频、主体参考，以及 MiniMax-H3 多模态参考生视频（异步）",
     auth: { type: "bearer" },
+    channelSettings: {
+      as: {
+        type: "enum",
+        label: "素材传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
+      },
+    },
     endpoints: {
       video: { mode: "async", method: "POST", path: "/v1/video_generation" },
     },
@@ -149,6 +159,7 @@ function isModern(model) {
 }
 
 function buildV1Body(ctx) {
+  var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
   var input = ctx.input || {};
   var model = ctx.model.upstreamModel;
   var body = { model: model };
@@ -167,10 +178,10 @@ function buildV1Body(ctx) {
     }
   } else {
     if (images.length > 0) {
-      body.first_frame_image = ref(images[0]);
+      body.first_frame_image = ref(images[0], referenceFormat);
     }
     if (images.length > 1) {
-      body.last_frame_image = ref(images[1]);
+      body.last_frame_image = ref(images[1], referenceFormat);
     }
   }
   return body;
@@ -381,8 +392,8 @@ function failedOrWait(err) {
 // 通用小工具
 // ---------------------------------------------------------------------------
 
-function ref(fileRef) {
-  return { __fileRef: fileRef, as: "url" };
+function ref(fileRef, format) {
+  return { __fileRef: fileRef, as: format || "url" };
 }
 
 function refList(list) {

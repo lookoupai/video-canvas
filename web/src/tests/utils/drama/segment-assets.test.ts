@@ -55,6 +55,34 @@ const nodes: GraphNode[] = [
 describe("assetsFromGraph：短剧画布上的资产节点", () => {
   const assets = assetsFromGraph(nodes);
 
+  test("音频节点没有 drama.type，按 kind 补成 audio 资产，可以进片场的 @ 候选", () => {
+    const audio = assetsFromGraph([
+      node("a1", {
+        kind: "audio",
+        label: "旁白",
+        src: "https://cdn/a1.mp3",
+        assetId: "24",
+        mediaType: "audio",
+        drama: { episodes: [] },
+      }),
+    ]);
+    expect(audio).toHaveLength(1);
+    expect(audio[0]).toMatchObject({
+      id: "a1",
+      type: "audio",
+      kind: "audio",
+      label: "旁白",
+      src: "https://cdn/a1.mp3",
+      assetId: "24",
+      episodes: [],
+    });
+    expect(
+      assetsFromGraph([
+        node("a2", { kind: "audio", label: "音频", src: "https://cdn/a2.mp3", assetId: "25" }),
+      ])[0].episodes,
+    ).toBeNull();
+  });
+
   test("只取有 drama.type 的节点，跳过组、导演台和未分类节点", () => {
     expect(assets.map((a) => a.id)).toEqual(["c1", "s1", "p1", "run"]);
   });
@@ -135,8 +163,8 @@ describe("按集与分组", () => {
   });
 
   test("分集卡片的角色 / 场景计数", () => {
-    expect(countForEpisode(assets, 2)).toEqual({ character: 1, scene: 2, prop: 0 });
-    expect(countForEpisode(assets, 3)).toEqual({ character: 0, scene: 1, prop: 1 });
+    expect(countForEpisode(assets, 2)).toEqual({ character: 1, scene: 2, prop: 0, audio: 0 });
+    expect(countForEpisode(assets, 3)).toEqual({ character: 0, scene: 1, prop: 1, audio: 0 });
   });
 });
 

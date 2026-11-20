@@ -105,3 +105,32 @@ type GenerateDramaSegmentReq struct {
 	// UseReferenceVideo 由服务器按已采用区间裁出静音视频后替换输入中的 videos。
 	UseReferenceVideo bool `json:"use_reference_video"`
 }
+
+// GenerateDramaBoardReq 片场生成故事板：前端按片段原稿和项目设置拼好的节点内容与任务输入，
+// 后端写短剧画布上的故事板节点并绑定任务（种类固定图片，画布与节点由服务指定）。
+type GenerateDramaBoardReq struct {
+	ModelID    string         `json:"model_id" binding:"required,max=128" label:"模型"`
+	Input      map[string]any `json:"input" binding:"required" label:"生成参数"`
+	Prompt     string         `json:"prompt" binding:"required,max=40000" label:"提示词"`
+	Params     map[string]any `json:"params" label:"节点参数"`
+	Label      string         `json:"label" binding:"max=255" label:"标题"`
+	SourceHash string         `json:"source_hash" binding:"required,max=128" label:"原稿哈希"`
+	Layout     string         `json:"layout" binding:"required,oneof=2x2 3x2 3x3" label:"宫格"`
+	ShotCount  int            `json:"shot_count" binding:"min=0,max=200" label:"镜头数"`
+	Refs       []string       `json:"refs" binding:"max=30,dive,max=128" label:"参考资产"`
+}
+
+// SelectDramaBoardOutputReq 切换故事板的当前版本：OutputID 是故事板节点历史里的某一版（素材 id）。
+type SelectDramaBoardOutputReq struct {
+	OutputID string `json:"output_id" binding:"required,max=64" label:"版本"`
+}
+
+// DramaSegmentStats 是某集片段的实时聚合。
+type DramaSegmentStats struct {
+	Count   int
+	Seconds int
+	// Done 有采用视频的片段数
+	Done int
+	// Boards 有故事板且没过期的片段数（故事板是短剧画布上的图片节点，见 DramaBoardHashes）
+	Boards int
+}

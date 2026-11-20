@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>故事板演示</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+    <style>
+      :root {
+        --radius: 0.625rem;
+        --background: 0 0% 100%;
+        --foreground: 240 10% 3.9%;
+        --card: 0 0% 100%;
+        --muted: 240 4.8% 95.9%;
+        --muted-foreground: 240 3.8% 46.1%;
+        --primary: 240 5.9% 10%;
+        --primary-foreground: 0 0% 98%;
+        --accent: 240 4.8% 95.9%;
+        --border: 240 5.9% 90%;
+        --ok: 5 150 105;
+        --bad: 220 38 38;
+        --warn: 180 83 9;
+        --info: 2 132 199;
+        --violet: 124 58 237;
+        --amber: 217 150 20;
+        color-scheme: light;
+      }
+      .dark {
+        --background: 240 10% 3.9%;
+        --foreground: 0 0% 98%;
+        --card: 240 10% 5.5%;
+        --muted: 240 3.7% 15.9%;
+        --muted-foreground: 240 5% 64.9%;
+        --primary: 0 0% 98%;
+        --primary-foreground: 240 5.9% 10%;
+        --accent: 240 3.7% 15.9%;
+        --border: 240 3.7% 17%;
+        --ok: 52 211 153;
+        --bad: 248 113 113;
+        --warn: 251 191 36;
+        --info: 56 189 248;
+        --violet: 167 139 250;
+        --amber: 245 190 70;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        font-family: Geist, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.55;
+      }
+      code, .mono { font-family: "Geist Mono", "SF Mono", Consolas, monospace; }
+      code { font-size: 0.92em; background: hsl(var(--muted)); padding: 1px 5px; border-radius: 5px; }
+      [data-lucide] { width: 1em; height: 1em; flex: none; }
+      h1, h2, h3, h4, p { margin: 0; }
+      button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+      select, textarea, input { font: inherit; color: inherit; }
+      table { border-collapse: collapse; width: 100%; }
+      th { font-weight: 500; text-align: left; }
+      [hidden] { display: none !important; }
+      .muted { color: hsl(var(--muted-foreground)); }
+      .row { display: flex; align-items: center; gap: 8px; }
+      .wrapflex { flex-wrap: wrap; }
+      .spacer { margin-left: auto; }
+
+      .top { position: sticky; top: 0; z-index: 30; background: hsl(var(--background) / 0.92); backdrop-filter: blur(8px); border-bottom: 1px solid hsl(var(--border)); }
+      .top-in { max-width: 1160px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 56px; }
+      .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; white-space: nowrap; }
+      .logo { width: 28px; height: 28px; border-radius: 8px; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); display: grid; place-items: center; }
+      .tabs { display: flex; gap: 2px; margin-left: 8px; overflow-x: auto; }
+      .tab { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500; color: hsl(var(--muted-foreground)); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; transition: background 0.15s, color 0.15s; }
+      .tab:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+      .tab[aria-selected="true"] { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+      .btn { height: 32px; padding: 0 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+      .btn:hover { background: hsl(var(--accent)); }
+      .btn-primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+      .btn-primary:hover { background: hsl(var(--primary) / 0.9); }
+      .btn-amber { background: rgb(var(--amber)); color: #1a1205; }
+      .btn-amber:hover { background: rgb(var(--amber) / 0.9); }
+      .btn-outline { border: 1px solid hsl(var(--border)); }
+      .btn-sm { height: 26px; padding: 0 8px; font-size: 12px; border-radius: 7px; }
+      .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .switch { width: 34px; height: 20px; border-radius: 999px; background: hsl(var(--border)); position: relative; transition: background 0.15s; flex: none; }
+      .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
+      .switch[aria-checked="true"] { background: rgb(var(--violet)); }
+      .switch[aria-checked="true"]::after { transform: translateX(14px); }
+      .switch.amber[aria-checked="true"] { background: rgb(var(--amber)); }
+
+      .wrap { max-width: 1160px; margin: 0 auto; padding: 32px 20px 80px; }
+      .h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+      .lead { margin-top: 10px; max-width: 820px; font-size: 15px; color: hsl(var(--muted-foreground)); }
+      .lead b { color: hsl(var(--foreground)); }
+      .sec { margin-top: 36px; }
+      .sec > h2 { font-size: 18px; font-weight: 600; }
+      .sec > .sub { margin: 4px 0 14px; max-width: 820px; font-size: 13.5px; color: hsl(var(--muted-foreground)); }
+      .card { border: 1px solid hsl(var(--border)); background: hsl(var(--card)); border-radius: var(--radius); padding: 16px; }
+      .grid { display: grid; gap: 12px; }
+      .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      @media (max-width: 820px) { .g2, .g3, .demo-grid { grid-template-columns: 1fr !important; } .top-in { padding: 0 12px; } .wrap { padding: 24px 16px 64px; } }
+      ul.list { margin: 0; padding-left: 18px; font-size: 13.5px; }
+
+      .tag { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 999px; font-size: 11.5px; font-weight: 500; white-space: nowrap; }
+      .t-ok { background: rgb(var(--ok) / 0.12); color: rgb(var(--ok)); }
+      .t-bad { background: rgb(var(--bad) / 0.12); color: rgb(var(--bad)); }
+      .t-warn { background: rgb(var(--warn) / 0.12); color: rgb(var(--warn)); }
+      .t-info { background: rgb(var(--info) / 0.12); color: rgb(var(--info)); }
+      .t-violet { background: rgb(var(--violet) / 0.12); color: rgb(var(--violet)); }
+      .t-mute { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+
+      .callout { display: flex; gap: 10px; padding: 12px 14px; border-radius: var(--radius); font-size: 13.5px; border: 1px solid; }
+      .callout > i { margin-top: 3px; }
+      .c-info { background: rgb(var(--info) / 0.07); border-color: rgb(var(--info) / 0.3); }
+      .c-info > i { color: rgb(var(--info)); }
+      .c-warn { background: rgb(var(--warn) / 0.07); border-color: rgb(var(--warn) / 0.3); }
+      .c-warn > i { color: rgb(var(--warn)); }
+      .c-bad { background: rgb(var(--bad) / 0.07); border-color: rgb(var(--bad) / 0.3); }
+      .c-bad > i { color: rgb(var(--bad)); }
+      .c-ok { background: rgb(var(--ok) / 0.07); border-color: rgb(var(--ok) / 0.3); }
+      .c-ok > i { color: rgb(var(--ok)); }
+
+      .flow { display: flex; align-items: stretch; gap: 6px; flex-wrap: wrap; padding: 14px; border-radius: var(--radius); }
+      .flow .node { flex: 1 1 140px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; }
+      .flow .node b { display: block; font-size: 13px; margin-bottom: 2px; }
+      .flow .node.hl { border-color: rgb(var(--amber)); box-shadow: 0 0 0 1px rgb(var(--amber)); }
+      .flow .arrow { display: grid; place-items: center; color: hsl(var(--muted-foreground)); }
+
+      .cmp-wrap { overflow-x: auto; border: 1px solid hsl(var(--border)); border-radius: var(--radius); }
+      .cmp th, .cmp td { padding: 9px 12px; font-size: 13px; vertical-align: top; border-bottom: 1px solid hsl(var(--border)); }
+      .cmp tr:last-child th, .cmp tr:last-child td { border-bottom: 0; }
+      .cmp thead th { background: hsl(var(--muted)); font-size: 12.5px; white-space: nowrap; }
+      .cmp tbody th { width: 140px; color: hsl(var(--muted-foreground)); font-weight: 500; }
+      .cmp .y { color: rgb(var(--ok)); }
+      .cmp .m { color: rgb(var(--warn)); font-weight: 500; }
+
+      .steps { list-style: none; counter-reset: s; display: grid; gap: 12px; }
+      .steps li { counter-increment: s; position: relative; padding-left: 32px; font-size: 13.5px; }
+      .steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+      .steps li small { display: block; color: hsl(var(--muted-foreground)); font-size: 12.5px; }
+
+      .codeblock { background: hsl(var(--muted)); border-radius: var(--radius); padding: 14px; font-family: "Geist Mono", "SF Mono", Consolas, monospace; font-size: 12.5px; overflow-x: auto; }
+      .codeblock pre { margin: 0; font: inherit; white-space: pre-wrap; }
+
+      .frame { border: 1px solid hsl(var(--border)); border-radius: 12px; overflow: hidden; background: hsl(var(--background)); }
+      .frame-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: hsl(var(--muted)); font-size: 12px; color: hsl(var(--muted-foreground)); }
+      .dot { width: 9px; height: 9px; border-radius: 50%; background: hsl(var(--border)); }
+      .proto { min-height: 560px; position: relative; overflow: hidden; }
+
+      .note { outline: 1.5px dashed rgb(var(--violet)); outline-offset: 3px; position: relative; }
+      .note-txt { display: none; margin-top: 6px; font-size: 11.5px; line-height: 1.5; color: rgb(var(--violet)); }
+      .show-notes .note-txt { display: block; }
+      body:not(.show-notes) .note { outline: none; }
+
+      .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 60; pointer-events: none; }
+      .toast > div { display: flex; align-items: center; gap: 8px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); border-radius: 10px; padding: 10px 14px; font-size: 13px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); }
+
+      /* ---- 宫格图（示意） ---- */
+      .board { display: grid; gap: 2px; background: #f5f2ea; padding: 2px; border-radius: 6px; width: 100%; overflow: hidden; position: relative; }
+      .board .cell { position: relative; overflow: hidden; display: flex; align-items: flex-end; padding: 3px 4px; font-size: 9px; line-height: 1.25; color: rgb(255 255 255 / 0.92); min-height: 0; }
+      .board .cell .no { position: absolute; top: 3px; right: 4px; font: 600 9px "Geist Mono", monospace; background: rgb(0 0 0 / 0.45); border-radius: 3px; padding: 0 3px; }
+      .board .cell.blank { background: #ebe7dd !important; }
+      .board .cell .fig { position: absolute; bottom: 22%; width: 18%; height: 42%; border-radius: 40% 40% 8px 8px; background: rgb(0 0 0 / 0.35); }
+      .board.dim { filter: grayscale(0.7) brightness(0.8); }
+      .board.upload { background: #e9e9e9; }
+
+      /* ---- 原型：仿产品界面 ---- */
+      .p-top { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid hsl(var(--border)); flex-wrap: wrap; }
+      .p-tabs { display: flex; gap: 2px; padding: 3px; border: 1px solid hsl(var(--border)); border-radius: 999px; background: hsl(var(--muted) / 0.5); margin: 0 auto; overflow-x: auto; max-width: 100%; }
+      .p-tab { height: 30px; padding: 0 14px; border-radius: 999px; font-size: 13px; color: hsl(var(--muted-foreground)); position: relative; white-space: nowrap; }
+      .p-tab[aria-selected="true"] { background: hsl(var(--foreground) / 0.1); color: hsl(var(--foreground)); font-weight: 600; }
+      .p-tab .pip { position: absolute; top: 5px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--amber)); }
+      .p-tab .pip.run { animation: blink 1s infinite; }
+      .p-tab.new::after { content: "新"; position: absolute; top: 1px; right: 0; font-size: 9px; background: rgb(var(--violet)); color: #fff; border-radius: 6px; padding: 0 3px; line-height: 14px; }
+      @keyframes blink { 50% { opacity: 0.2; } }
+      .pill { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid hsl(var(--border)); border-radius: 999px; font-size: 12.5px; }
+      .p-body { display: grid; grid-template-columns: 150px minmax(0, 1fr); min-height: 500px; }
+      @media (max-width: 820px) { .p-body { grid-template-columns: 1fr; } .p-rail { display: flex; overflow-x: auto; border-right: 0 !important; border-bottom: 1px solid hsl(var(--border)); } }
+      .p-rail { border-right: 1px solid hsl(var(--border)); padding: 10px 8px; display: grid; gap: 4px; align-content: start; }
+      .ep { text-align: left; padding: 8px 10px; border-radius: 10px; font-size: 12.5px; white-space: nowrap; }
+      .ep:hover { background: hsl(var(--accent)); }
+      .ep[aria-selected="true"] { background: hsl(var(--foreground) / 0.08); font-weight: 600; }
+      .ep small { display: block; font-weight: 400; color: hsl(var(--muted-foreground)); font-size: 11px; }
+      .p-main { padding: 14px 16px; position: relative; min-width: 0; }
+      .wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 12px; }
+      .bcard { border: 1px solid hsl(var(--border)); border-radius: 12px; padding: 8px; background: hsl(var(--card)); text-align: left; display: grid; gap: 6px; position: relative; transition: border-color 0.15s; }
+      .bcard:hover { border-color: hsl(var(--foreground) / 0.3); }
+      .bcard.sel { border-color: rgb(var(--amber)); box-shadow: 0 0 0 1px rgb(var(--amber)); }
+      .bcard.failed { border-color: rgb(var(--bad) / 0.6); }
+      .ph { aspect-ratio: 9 / 16; border-radius: 6px; background: hsl(var(--muted)); display: grid; place-items: center; color: hsl(var(--muted-foreground)); font-size: 12px; text-align: center; padding: 8px; position: relative; overflow: hidden; }
+      .ph.run::after { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, hsl(var(--foreground) / 0.08) 50%, transparent 70%); animation: shimmer 1.2s infinite; }
+      @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+      .corner { position: absolute; top: 12px; left: 12px; z-index: 2; }
+      .drawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(420px, 100%); background: hsl(var(--card)); border-left: 1px solid hsl(var(--border)); box-shadow: -12px 0 30px rgb(0 0 0 / 0.15); padding: 14px 16px; overflow-y: auto; z-index: 5; display: grid; gap: 12px; align-content: start; }
+      .vers { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+      .ver { width: 54px; flex: none; border: 2px solid transparent; border-radius: 8px; padding: 2px; position: relative; }
+      .ver.on { border-color: rgb(var(--amber)); }
+      .ver .vtag { position: absolute; bottom: 3px; left: 3px; font-size: 9px; background: rgb(0 0 0 / 0.6); color: #fff; border-radius: 4px; padding: 0 3px; }
+      .field { width: 100%; border: 1px solid hsl(var(--border)); background: hsl(var(--background)); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; }
+      textarea.field { resize: vertical; min-height: 70px; line-height: 1.5; }
+      .mask { position: absolute; inset: 0; background: rgb(0 0 0 / 0.45); display: grid; place-items: center; z-index: 8; padding: 16px; }
+      .dialog { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 16px; width: min(440px, 100%); padding: 18px; display: grid; gap: 12px; max-height: 100%; overflow-y: auto; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px 0 3px; border-radius: 9px; background: hsl(var(--muted)); font-size: 12px; }
+      .chip .th { width: 26px; height: 26px; border-radius: 6px; overflow: hidden; display: grid; place-items: center; background: hsl(var(--background) / 0.6); }
+      .chip.board-chip { outline: 1px solid rgb(var(--amber) / 0.6); }
+      .chip.off { opacity: 0.55; }
+      .seglist { display: grid; gap: 4px; }
+      .segrow { display: flex; align-items: center; gap: 8px; text-align: left; padding: 6px 8px; border-radius: 9px; font-size: 12.5px; }
+      .segrow:hover { background: hsl(var(--accent)); }
+      .segrow[aria-selected="true"] { background: hsl(var(--foreground) / 0.08); font-weight: 600; }
+      .kv { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 4px 10px; font-size: 12.5px; }
+      .kv dt { color: hsl(var(--muted-foreground)); }
+      .kv dd { margin: 0; }
+      .opt { text-align: left; padding: 10px 12px; border: 1px solid hsl(var(--border)); border-radius: 10px; font-size: 13px; }
+      .opt[aria-selected="true"] { border-color: rgb(var(--amber)); box-shadow: 0 0 0 1px rgb(var(--amber)); }
+      .opt small { display: block; color: hsl(var(--muted-foreground)); font-size: 12px; }
+      .imgs { display: grid; gap: 6px; }
+      .imgrow { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 6px 8px; border-radius: 8px; background: hsl(var(--muted) / 0.6); }
+      .imgrow.drop { text-decoration: line-through; opacity: 0.6; }
+    </style>
+  </head>
+
+  <body class="show-notes">
+    <header class="top">
+      <div class="top-in">
+        <div class="brand"><span class="logo"><i data-lucide="layout-grid"></i></span>故事板演示</div>
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" data-tab="overview" aria-selected="true"><i data-lucide="map"></i>总览</button>
+          <button class="tab" role="tab" data-tab="demo" aria-selected="false"><i data-lucide="mouse-pointer-click"></i>交互演示</button>
+          <button class="tab" role="tab" data-tab="proto" aria-selected="false"><i data-lucide="layout-dashboard"></i>可点击原型</button>
+          <button class="tab" role="tab" data-tab="impl" aria-selected="false"><i data-lucide="database"></i>数据与接口</button>
+        </div>
+        <div class="spacer row">
+          <label class="row muted" style="font-size: 12px">设计标注<button class="switch" id="notesSw" role="switch" aria-checked="true" onclick="toggleNotes()"></button></label>
+          <button class="btn" onclick="document.documentElement.classList.toggle('dark')" aria-label="切换明暗主题"><i data-lucide="sun-moon"></i></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <!-- ============ 1. 总览 ============ -->
+      <section id="tab-overview">
+        <h1 class="h1">给每个片段先画一张宫格分镜图，生视频时让模型照着拍</h1>
+        <p class="lead">
+          现在的分镜只有文字。模型生视频时只拿到提示词和角色、场景图，不知道每个镜头该怎么构图，同一段重抽几次画面差异很大。
+          这次在顶部加一个<b>「故事板」</b>工序：每个片段按镜头数生成一张宫格图，用户先看图、定稿，到片场生视频时<b>自动作为第 1 张参考图带上</b>。
+          <b>没有或过期的故事板只提醒，不拦截生视频。</b>
+        </p>
+
+        <div class="callout c-info" style="margin-top: 16px">
+          <i data-lucide="info"></i>
+          <div>
+            <b>阅读说明。</b>项目现状来自代码（<code>stages.ts</code>、<code>segment-input.ts</code>、<code>storyboard_draft.md</code>）；竞品信息来自 2026-11-19 的检索。原型里的宫格图是 CSS 画的<b>示意</b>，生成过程用 <code>setTimeout</code> 模拟，<b>功能尚未实现</b>。完整依据见 <code>故事板.md</code>。<br />
+            <span class="muted">核实度图例：</span>
+            <span class="tag t-ok">已核对代码 / 官方页面</span>
+            <span class="tag t-info">调研检索，未逐条复核</span>
+            <span class="tag t-warn">未验证 · 需实测</span>
+            <span class="tag t-violet">提案</span>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h2>主线：故事板插在哪、怎么被用到</h2>
+          <p class="sub">顶部工序从 5 个变成 6 个，故事板夹在资产和片场之间，因为它同时需要分镜原稿和资产图。</p>
+          <div class="flow note">
+            <div class="node"><b>剧本 / 拆解</b>写剧本，拆出角色、场景、道具</div>
+            <div class="arrow"><i data-lucide="arrow-right"></i></div>
+            <div class="node"><b>资产管理</b>生成资产图（主图）</div>
+            <div class="arrow"><i data-lucide="arrow-right"></i></div>
+            <div class="node"><b>分镜（文字）</b>每段原稿带【时间轴】，一镜一行 <span class="tag t-ok">已有</span></div>
+            <div class="arrow"><i data-lucide="arrow-right"></i></div>
+            <div class="node hl"><b>故事板 · 新</b>按镜头数出宫格图，资产主图作参考，多版挑一张采用 <span class="tag t-violet">提案</span></div>
+            <div class="arrow"><i data-lucide="arrow-right"></i></div>
+            <div class="node"><b>片场生视频</b>采用的宫格图作为第 1 张参考图，加一行说明 <span class="tag t-violet">提案</span></div>
+          </div>
+          <div class="note-txt">设计：故事板是片段的附属产物，从原稿推导，不反过来改原稿。现有的「分镜」按钮仍然在片场里（分镜和片段强绑定），故事板标签只负责看图和出图，不搬动分镜入口。</div>
+          <div class="callout c-warn" style="margin-top: 10px">
+            <i data-lucide="corner-down-right"></i>
+            <div>
+              <b>没有故事板时（回退，永远可用）：</b>片场生视频的行为和今天完全一样，只在生成按钮旁多一条「未引用故事板」提醒。
+              模型只收首帧（i2v）或只能文生视频（t2v）时，<b>不带宫格图</b>，以免把宫格图当成视频首帧。
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h2>宫格怎么分：按镜头数自动</h2>
+          <p class="sub">一镜一格，格子顺序就是时间轴顺序，模型和人都能对上号。镜头数从原稿【时间轴】里的「0-3秒：」这类行数出来。</p>
+          <div class="grid g3">
+            <div class="card">
+              <div class="row"><i data-lucide="grid-2x2"></i><b>1–4 镜 → 2×2</b></div>
+              <div class="row wrapflex" style="margin-top: 6px"><span class="tag t-mute">最常见</span></div>
+              <p class="muted" style="font-size: 13px; margin-top: 8px"><b>用不满的格子留白。</b>识别不到时间轴时也按 4 格出，并提示「没识别到时间轴」。</p>
+            </div>
+            <div class="card">
+              <div class="row"><i data-lucide="layout-grid"></i><b>5–6 镜 → 2×3 / 3×2</b></div>
+              <div class="row wrapflex" style="margin-top: 6px"><span class="tag t-info">方向跟画幅</span></div>
+              <p class="muted" style="font-size: 13px; margin-top: 8px"><b>竖屏 9:16 用 2 列 3 行</b>，横屏用 3 列 2 行，让每一格接近成片比例。</p>
+            </div>
+            <div class="card">
+              <div class="row"><i data-lucide="grid-3x3"></i><b>7–9 镜 → 3×3</b></div>
+              <div class="row wrapflex" style="margin-top: 6px"><span class="tag t-warn">≥10 镜会合并</span></div>
+              <p class="muted" style="font-size: 13px; margin-top: 8px"><b>超过 9 镜时，第 9 格合并剩余镜头</b>，并提示「镜头过多，建议拆段」。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h2>为什么是宫格图</h2>
+          <p class="sub">访谈里列了四种理解，用户选了宫格图。下面是它和另外两种主要方案的对比，以及调研里看到的竞品做法。</p>
+          <div class="cmp-wrap">
+            <table class="cmp">
+              <thead><tr><th></th><th>宫格分镜图（选定）</th><th>逐镜关键帧</th><th>项目视觉设定集</th><th>竞品常见做法</th></tr></thead>
+              <tbody>
+                <tr><th>管什么</th><td class="y">构图、站位、景别、镜头顺序</td><td class="y">每镜画面，最细</td><td><span class="m">只管画风、色调，不管构图</span></td><td>资产自动关联 + 每镜一格画面（LTX、Boords、即梦）</td></tr>
+                <tr><th>每段成本</th><td class="y">1 张图</td><td><span class="m">3–6 张图</span></td><td class="y">项目级一次</td><td>每格一张</td></tr>
+                <tr><th>参考图名额</th><td class="y">只占 1 张</td><td><span class="m">每镜一张，名额吃紧</span></td><td>占 1–3 张</td><td>各家上限 3 / 4 / 7 张</td></tr>
+                <tr><th>模型要求</th><td><span class="m">需要全能参考（omni），i2v / t2v 不带</span></td><td>i2v 可用首帧</td><td class="y">广</td><td>—</td></tr>
+                <tr><th>过期提示</th><td class="y">原稿改了就标「已过期」</td><td>同左</td><td>同左</td><td class="m">6 家都未验证到明确的过期提示</td></tr>
+                <tr><th>核实度</th><td><span class="tag t-violet">提案</span> <span class="tag t-warn">提升效果未实测</span></td><td><span class="tag t-violet">已搁置</span></td><td><span class="tag t-violet">已搁置</span></td><td><span class="tag t-info">调研检索</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h2>用户改了片段原稿，会发生什么</h2>
+          <p class="sub">这是最容易让人困惑的地方：图已经出了，原稿又改了。</p>
+          <div class="grid g2">
+            <div class="card">
+              <ol class="steps" style="margin: 0; padding: 0">
+                <li><b>在片场改原稿并保存</b><small>片段的 <code>revision</code> 加 1，原稿的哈希变化</small></li>
+                <li><b>采用版宫格图的 <code>source_hash</code> 对不上了</b><small>故事板卡片显示黄角标「原稿已改」，片场芯片显示「已过期」</small></li>
+                <li><b>此时生视频</b><small>照样带旧图，生成按钮旁提示「故事板已过期」</small></li>
+                <li><b>点「重新生成」</b><small>新一版成功后自动采用，状态恢复正常；旧版仍保留在版本列表里</small></li>
+              </ol>
+            </div>
+            <div class="card">
+              <div class="callout c-warn">
+                <i data-lucide="triangle-alert"></i>
+                <div>
+                  <b>边界：不会自动重新生成。</b>
+                  <ul class="list" style="margin-top: 6px">
+                    <li>自动重跑会悄悄扣积分，所以只提醒，不自动重跑。</li>
+                    <li>只改错别字也会触发「已过期」，用户可以忽略。</li>
+                    <li>在片场重新生成整集分镜时，旧片段连同故事板一起删除，确认框里要写明张数。</li>
+                  </ul>
+                </div>
+              </div>
+              <p class="muted" style="font-size: 12.5px; margin-top: 10px">交付时要说明：宫格图对视频的提升效果是社区经验，<b>未实测</b>；上线前需要拿同一批片段做带图和不带图的对比。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 2. 交互演示 ============ -->
+      <section id="tab-demo" hidden>
+        <h1 class="h1">生视频时，宫格图怎么被带进请求</h1>
+        <p class="lead">
+          选一个视频模型，切换故事板的状态和开关，右边实时显示这次请求的 <code>input.images</code> 顺序和 <code>prompt</code> 开头。
+          <b>模型名和参考图上限是示意</b>，真实值以后台模型能力（<code>caps.refs.image.max</code>、<code>caps.ops</code>）为准。
+        </p>
+        <div class="grid demo-grid" style="margin-top: 20px; grid-template-columns: 260px minmax(0, 1fr)">
+          <div class="grid" style="align-content: start">
+            <div class="muted" style="font-size: 12px">视频模型（示意）</div>
+            <div id="modelList" class="grid" style="gap: 8px"></div>
+            <div class="muted" style="font-size: 12px; margin-top: 8px">故事板状态</div>
+            <select id="boardState" class="field">
+              <option value="done">已完成</option>
+              <option value="stale">已过期（原稿改过）</option>
+              <option value="empty">还没生成</option>
+              <option value="running">生成中（无旧版）</option>
+              <option value="failed">失败</option>
+            </select>
+            <label class="row" style="font-size: 13px; margin-top: 4px"><button class="switch amber" id="boardSw" role="switch" aria-checked="true"></button>本次带上故事板</label>
+          </div>
+          <div class="card note" id="planPanel"></div>
+        </div>
+        <div class="note-txt">设计：宫格图排第一，因为它一张图同时编码了构图、站位和镜头顺序；角色主图仍然优先于补充图，所以截断时先丢补充图。说明行只在组装请求时临时加，不写进原稿，避免污染转写稿和过期判断。</div>
+      </section>
+
+      <!-- ============ 3. 可点击原型 ============ -->
+      <section id="tab-proto" hidden>
+        <h1 class="h1">可点击原型：故事板 + 片场</h1>
+        <p class="lead">
+          数据在内存里，刷新复原。已预置第 3 集「相识」的 6 个片段，覆盖<b>已完成、已过期、失败、未生成、生成中、多版本</b>几种状态。
+          可以试：点「生成本集故事板」；点开卡片切换版本、上传、删除；改原稿让它过期；切到「片场」看引用效果。
+          想看失败怎么提示：在「画面补充说明」里写 <code>bad</code> 再生成。
+        </p>
+        <div class="callout c-warn" style="margin-top: 16px">
+          <i data-lucide="triangle-alert"></i>
+          <div><b>这是设计阶段的早期原型。</b>实际实现已经改为：故事板是短剧画布上的图片节点，页面复用资产管理（列表 ⇄ 画布、一行三张 16:9 卡片、悬停浮出操作），没有右侧详情和补充说明；换版本在画布里用节点历史。以「数据与接口」页和 <code>故事板.md</code> §6、§13 为准。</div>
+        </div>
+        <div class="frame note" style="margin-top: 18px">
+          <div class="frame-bar">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span style="margin-left: 8px" id="crumb">video-canvas / 短剧 / 故乡 / 故事板</span>
+          </div>
+          <div class="proto" id="proto"></div>
+        </div>
+        <div class="note-txt">设计：故事板页沿用工作台的「左分集栏 + 主区」布局，详情用右侧抽屉而不是新页面，看图时还能看到整集的上下文。版本列表沿用片场视频 take 的心智：多版、采用一版。</div>
+      </section>
+
+      <!-- ============ 4. 数据与接口 ============ -->
+      <section id="tab-impl" hidden>
+        <h1 class="h1">数据与接口（已实现）</h1>
+        <p class="lead">故事板是<b>短剧画布上的图片节点</b>，和资产在同一块画布上，但不是资产：不进资产列表、不能被片段 @。<b>后端没有新增接口、表和错误码</b>，只读画布来数集摘要里的故事板数。对应 <code>故事板.md</code> 的 §8 与 §13。</p>
+
+        <div class="sec">
+          <h2>故事板节点</h2>
+          <p class="sub">普通的 <code>kind: "image"</code> 节点，<code>data.drama</code> 没有 <code>type</code>，靠 <code>drama.board</code> 标记属于哪个片段。</p>
+          <div class="codeblock"><pre>{
+  "kind": "image",
+  "label": "故事板 · 第 3 集 · 01",
+  "prompt": "生成一张 4 格分镜图：2 列 2 行，整图比例 16:9……",
+  "params": { "prompt": "…", "aspect_ratio": "16:9" },
+  "model": "&lt;图片模型&gt;",
+  "drama": {
+    "episodes": [3],
+    "board": { "segmentId": "5d2a", "sourceHash": "&lt;出图时原稿的 SHA-256&gt;", "layout": "2x2", "shotCount": 3 }
+  }
+}</pre></div>
+          <ul class="list" style="margin-top: 10px">
+            <li>原稿里 @ 的资产节点连线进来，生成时由节点按现有规则带参考图，提示词里的 @ 换成图片编号。</li>
+            <li>生成、重新生成、历史版本都是画布节点自带的流程。重新生成时用现在的原稿重写提示词和 <code>sourceHash</code>，保留节点上的模型和参数。</li>
+            <li>新节点放在非故事板节点的右边，每集一行、每段一列。</li>
+          </ul>
+        </div>
+
+        <div class="sec">
+          <h2>后端：集摘要的 <code>done_board_count</code></h2>
+          <div class="cmp-wrap">
+            <table class="cmp">
+              <thead><tr><th>位置</th><th>做什么</th></tr></thead>
+              <tbody>
+                <tr><th><code>drama.BoardHashes</code></th><td>解析画布 payload，收集有图（<code>src</code> 非空且不是 <code>blob:</code>）的故事板节点：片段 ID → 出图时的哈希</td></tr>
+                <tr><th><code>DramaService</code></th><td>整部剧详情只读一次画布；画布不存在按 0，其他读取错误照常上报</td></tr>
+                <tr><th><code>DramaSegmentService.Summary</code></th><td>片段原稿的 SHA-256 和记下的哈希相同才计数</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h2>前端：生视频时带上故事板</h2>
+          <div class="codeblock"><pre>// utils/drama/segment-input.ts（已实现）
+board = boardRef(画布里这个片段的故事板节点, 当前原稿哈希)   // 有图就带，哈希对不上标过期
+if board && 用户没关 && 模型支持 omni 且收参考图:
+  images = [board.asset, ...其余参考]       // 故事板固定是 images[0]
+  prompt = BOARD_LINE + "\n" + 原稿          // 「图片1是本段的分镜宫格图……」
+else:
+  不带（i2v 会把第一张图当首帧，t2v 不收图）</pre></div>
+        </div>
+
+        <div class="sec">
+          <h2>已确认的决定</h2>
+          <div class="card">
+            <ol class="list" style="padding-left: 18px">
+              <li><b>每个片段一张宫格分镜图，生视频时作为第一张参考图</b>。</li>
+              <li><b>格数按镜头数自动</b>；故事板固定 <b>16:9 横版</b>（5–6 镜 3×2）。</li>
+              <li><b>缺失或过期只提醒，可以继续生视频</b>。</li>
+              <li><b>提示词全用内置模板</b>，去掉「画面补充说明」和详情栏，一行三张卡片。</li>
+              <li><b>故事板是短剧画布上的图片节点，完全复用资产管理</b>：不能被 @，能在画布里查看、重新生成、切换历史版本；第一版的后端故事板接口和迁移已删除。</li>
+              <li><b>总览保留「故事板」列</b>，后端读画布来数。</li>
+              <li><b>主文档已回写</b>：§6、§7、§8、§10、§11、§13。</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+      const $ = (s, r = document) => r.querySelector(s);
+      const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+      const icons = () => { if (window.lucide) lucide.createIcons(); };
+      function toggleNotes() {
+        const on = document.body.classList.toggle("show-notes");
+        $("#notesSw").setAttribute("aria-checked", String(on));
+      }
+      let toastTimer;
+      function toast(msg, kind = "ok") {
+        const icon = { ok: "circle-check", bad: "circle-x", warn: "triangle-alert" }[kind] || "info";
+        $("#toast").innerHTML = `<div><i data-lucide="${icon}" style="color: rgb(var(--${kind}))"></i>${esc(msg)}</div>`;
+        icons();
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => ($("#toast").innerHTML = ""), 2400);
+      }
+      function showTab(id) {
+        document.querySelectorAll("main > section").forEach((s) => (s.hidden = s.id !== "tab-" + id));
+        document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === id)));
+        window.scrollTo(0, 0);
+      }
+      document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
+
+      /* ================= 共用：镜头解析、布局、示意宫格图 ================= */
+      const SHOT_RE = /^\s*\d+(\.\d+)?\s*-\s*\d+(\.\d+)?\s*秒[:：](.*)$/;
+      function shots(prompt) {
+        const lines = prompt.split("\n");
+        const start = lines.findIndex((l) => l.includes("【时间轴】"));
+        if (start < 0) return [];
+        return lines.slice(start + 1).map((l) => l.match(SHOT_RE)).filter(Boolean).map((m) => m[3].trim());
+      }
+      function layoutOf(n, ratio = "9:16") {
+        if (n <= 4) return { key: "2x2", cols: 2, rows: 2 };
+        if (n <= 6) return ratio === "9:16" ? { key: "2x3", cols: 2, rows: 3 } : { key: "3x2", cols: 3, rows: 2 };
+        return { key: "3x3", cols: 3, rows: 3 };
+      }
+      function hash(s) {
+        let h = 0;
+        for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+        return (h >>> 0).toString(16);
+      }
+      /** 示意宫格图：用色块和小人代替真实画面 */
+      function boardHTML(b, opts = {}) {
+        if (b.source === "upload") {
+          return `<div class="board upload" style="aspect-ratio:9/16;display:grid;place-items:center;color:#666;font-size:11px">
+            <div style="text-align:center"><i data-lucide="image-up"></i><br/>上传的图<br/>（示意）</div></div>`;
+        }
+        const L = layoutOf(b.shots.length);
+        const cells = [];
+        for (let i = 0; i < L.cols * L.rows; i++) {
+          const text = b.shots[i];
+          if (text === undefined) { cells.push(`<div class="cell blank"></div>`); continue; }
+          const hue = (b.hue + i * 17) % 360;
+          const left = 15 + ((i * 37 + b.hue) % 55);
+          cells.push(`<div class="cell" style="background:linear-gradient(160deg,hsl(${hue} 35% 42%),hsl(${(hue + 40) % 360} 30% 22%))">
+            <span class="fig" style="left:${left}%"></span><span class="no">${i + 1}</span>
+            ${opts.text ? `<span style="position:relative">${esc(text.split("。")[0].slice(0, 14))}</span>` : ""}</div>`);
+        }
+        return `<div class="board ${opts.dim ? "dim" : ""}" style="aspect-ratio:9/16;grid-template-columns:repeat(${L.cols},1fr);grid-template-rows:repeat(${L.rows},1fr)">${cells.join("")}</div>`;
+      }
+
+      /* ================= 原型数据 ================= */
+      const ASSETS = {
+        a1: { name: "闰土", type: "character", hasVoice: true, extra: 2 },
+        a2: { name: "迅哥儿", type: "character", hasVoice: true, extra: 1 },
+        a3: { name: "周家厨房", type: "scene" },
+        a4: { name: "钢叉", type: "prop" },
+        a5: { name: "海边瓜地", type: "scene" },
+      };
+      function mkPrompt(scene, refs, stand, list) {
+        return `【画幅风格】9:16 竖屏，真人都市电影质感，暖黄低饱和。
+【场景与光】${scene}
+【参考与人物】${refs}
+【站位】${stand}
+【时间轴】
+${list.map((s, i) => `${i * 3}-${i * 3 + 3}秒：${s}`).join("\n")}`;
+      }
+      const SEED = [
+        mkPrompt("@[周家厨房](a3)，正月午后，窗外侧光，暖色硬光。", "@[迅哥儿](a2) 外貌与服装；@[闰土](a1) 外貌与服装。", "迅哥儿画面右，扶门框；闰土画面左，靠灶台。",
+          ["全景、平视、固定。迅哥儿推门跑进厨房。台词：无", "中景、平视、缓推。闰土低头躲在灶台边，攥着衣角。", "近景、过肩。迅哥儿伸出手，闰土抬眼。迅哥儿（试探）：『你就是闰土？』"]),
+        mkPrompt("@[周家厨房](a3)，同上光线。", "@[闰土](a1)；@[迅哥儿](a2)。", "两人并排坐在门槛，闰土左、迅哥儿右。",
+          ["中景、平视、固定。两人坐上门槛。", "特写。闰土的右手摊开，掌心一枚贝壳。", "近景、仰拍。迅哥儿睁大眼睛。", "中景、缓移。闰土比划捕鸟的动作。闰土（压低声）：『雪天，扫出一块空地……』", "近景。迅哥儿笑出声。"]),
+        mkPrompt("@[海边瓜地](a5)，月夜，冷蓝月光自右上。", "@[闰土](a1) 少年形象；@[钢叉](a4) 道具形态。", "闰土画面中，持叉；猹从左下窜出。",
+          ["远景、俯拍。月下瓜地一片银光。", "中景、平视。闰土握紧钢叉，缓步前移。", "特写。猹的眼睛在瓜叶间一闪。", "全景、横移。闰土刺出钢叉，猹从胯下逃走。"]),
+        mkPrompt("@[周家厨房](a3)，黄昏，光线变暗。", "@[迅哥儿](a2)；@[闰土](a1)。", "闰土画面左，背包袱；迅哥儿画面右，追出门。",
+          ["全景、固定。闰土父亲在门外招手。", "中景。闰土背起包袱。", "近景。迅哥儿拉住闰土的袖子。", "特写。闰土把贝壳塞进迅哥儿手里。", "中景、跟拍。闰土转身离开。", "近景、仰拍。迅哥儿攥着贝壳，眼眶发红。"]),
+        mkPrompt("@[周家厨房](a3)，夜，烛光。", "@[迅哥儿](a2)。", "迅哥儿坐窗下。",
+          ["近景、固定。迅哥儿对着烛光看贝壳。", "特写、缓推。贝壳的纹路，烛火晃动。"]),
+        mkPrompt("@[海边瓜地](a5)，白天，晴，顶光。", "@[闰土](a1) 成年形象；@[迅哥儿](a2) 成年形象。", "成年闰土画面左，迅哥儿画面右，相隔三步。",
+          ["远景。两人在瓜地重逢。", "中景、平视。迅哥儿快步上前。", "近景。闰土脸上皱纹，嘴唇动了动。", "特写。闰土的手在衣襟上擦了擦。", "近景、过肩。闰土（恭敬地）：『老爷……』", "近景。迅哥儿僵住。", "全景、缓拉。两人之间隔着一道看不见的墙。"]),
+      ];
+      let vid = 0;
+      const mkBoard = (seg, extra = {}) => ({ id: "b" + ++vid, source: "generated", status: "done", hash: hash(seg.prompt), shots: shots(seg.prompt), hue: (seg.seq * 53 + vid * 29) % 360, note: "", err: "", ...extra });
+      function initProto() {
+        const segs = SEED.map((p, i) => ({ id: "s" + (i + 1), seq: i, seconds: shots(p).length * 3, prompt: p, boards: [], chosen: null, rev: 1 }));
+        // 01 已完成
+        let b = mkBoard(segs[0]); segs[0].boards.push(b); segs[0].chosen = b.id;
+        // 02 已过期：图按旧原稿出，之后原稿改过
+        b = mkBoard(segs[1], { hash: "old" }); segs[1].boards.push(b); segs[1].chosen = b.id;
+        // 03 失败
+        segs[2].boards.push(mkBoard(segs[2], { status: "failed", err: "图片模型返回内容审核未通过" }));
+        // 04 未生成；05 生成中
+        segs[4].boards.push(mkBoard(segs[4], { status: "running" }));
+        // 06 多版本
+        const b1 = mkBoard(segs[5]); const b2 = mkBoard(segs[5], { note: "更强的压迫感，低机位" });
+        segs[5].boards.push(b1, b2); segs[5].chosen = b2.id;
+        return { area: "board", ep: 3, segs, open: null, dialog: null, studioSeg: "s2", model: "seedance", boardOn: true, imgModel: "场景模型 · 示意 Image-2" };
+      }
+      let P = initProto();
+      // 05 的预置任务 4 秒后完成
+      setTimeout(() => finishBoard("s5", P.segs[4].boards[0].id, false), 4000);
+
+      const seg = (id) => P.segs.find((s) => s.id === id);
+      const chosenOf = (s) => s.boards.find((b) => b.id === s.chosen) || null;
+      /** 与 Markdown §8.1 的状态推导一致 */
+      function statusOf(s) {
+        if (s.boards.some((b) => b.status === "running")) return "running";
+        const last = s.boards[s.boards.length - 1];
+        if (last && last.status === "failed") return "failed";
+        const c = chosenOf(s);
+        if (!c) return "empty";
+        return c.hash === hash(s.prompt) ? "ready" : "stale";
+      }
+      const STATUS_TAG = {
+        empty: `<span class="tag t-mute">未生成</span>`,
+        running: `<span class="tag t-info">生成中</span>`,
+        failed: `<span class="tag t-bad">失败</span>`,
+        ready: `<span class="tag t-ok">已完成</span>`,
+        stale: `<span class="tag t-warn">原稿已改</span>`,
+      };
+      const COST = 8; // 每张积分，示意
+
+      function startBoard(sid, note = "") {
+        const s = seg(sid);
+        const b = mkBoard(s, { status: "running", note });
+        s.boards.push(b);
+        renderProto();
+        setTimeout(() => finishBoard(sid, b.id, note.toLowerCase().includes("bad")), 1800 + Math.random() * 1200);
+      }
+      function finishBoard(sid, bid, fail) {
+        const s = seg(sid);
+        const b = s && s.boards.find((x) => x.id === bid);
+        if (!b || b.status !== "running") return;
+        if (fail) { b.status = "failed"; b.err = "图片模型返回内容审核未通过（模拟）"; toast(`片段 ${String(s.seq + 1).padStart(2, "0")} 故事板生成失败`, "bad"); }
+        else { b.status = "done"; b.hash = hash(s.prompt); b.shots = shots(s.prompt); s.chosen = b.id; s.rev++; }
+        renderProto();
+      }
+
+      /* ================= 原型渲染 ================= */
+      const AREAS = [["overview", "总览"], ["script", "剧本"], ["assets", "资产管理"], ["board", "故事板"], ["studio", "片场"], ["final", "成片"]];
+      function renderProto() {
+        const counts = P.segs.map(statusOf);
+        const pip = counts.includes("running") ? "run" : counts.some((c) => c !== "ready") ? "todo" : "";
+        $("#crumb").textContent = `video-canvas / 短剧 / 故乡 / ${AREAS.find((a) => a[0] === P.area)[1]}`;
+        const top = `<div class="p-top">
+          <b style="font-size:13px">故乡</b><span class="muted" style="font-size:12px"><i data-lucide="cloud"></i> 已保存</span>
+          <div class="p-tabs">${AREAS.map(([k, l]) => `<button class="p-tab ${k === "board" ? "new" : ""}" aria-selected="${P.area === k}" onclick="P.area='${k}';P.open=null;renderProto()">${l}${k === "board" && pip ? `<span class="pip ${pip === "run" ? "run" : ""}"></span>` : ""}</button>`).join("")}</div>
+          <span class="pill">真人都市电影 · 9:16</span>
+        </div>`;
+        let body = "";
+        if (P.area === "board") body = boardArea();
+        else if (P.area === "studio") body = studioArea();
+        else if (P.area === "overview") body = overviewArea();
+        else body = `<div class="p-main" style="grid-column:1/-1;display:grid;place-items:center;min-height:400px"><span class="muted">原型只做「故事板」「片场」和「总览」矩阵的新列，其他页面保持现状</span></div>`;
+        $("#proto").innerHTML = top + body + dialogHTML();
+        icons();
+      }
+      function rail() {
+        const eps = [[1, "童年印象", "4/4"], [2, "正月祭祀", "0/5"], [3, "相识", null]];
+        return `<div class="p-rail">${eps.map(([no, t, c]) => {
+          const done = no === 3 ? `${P.segs.filter((s) => statusOf(s) === "ready").length}/${P.segs.length}` : c;
+          return `<button class="ep" aria-selected="${P.ep === no}" onclick="${no === 3 ? "" : "toast('原型只预置了第 3 集','warn')"}">第 ${no} 集 · ${t}<small>故事板 ${done}</small></button>`;
+        }).join("")}</div>`;
+      }
+      function boardArea() {
+        const sts = P.segs.map(statusOf);
+        const todo = P.segs.filter((s, i) => sts[i] !== "ready" && sts[i] !== "running");
+        const cards = P.segs.map((s, i) => {
+          const st = sts[i];
+          const c = chosenOf(s);
+          const n = shots(s.prompt).length;
+          let pic;
+          if (c && c.status === "done") pic = boardHTML(c, { dim: st === "running" });
+          else if (st === "running") pic = `<div class="ph run">生成中…</div>`;
+          else if (st === "failed") pic = `<div class="ph" style="color:rgb(var(--bad))"><div><i data-lucide="circle-x"></i><br/>生成失败</div></div>`;
+          else pic = `<div class="ph"><div><i data-lucide="layout-grid"></i><br/>${layoutOf(n).key.replace("x", "×")} · ${n} 镜<br/><span style="font-size:11px">还没有故事板</span></div></div>`;
+          return `<button class="bcard ${P.open === s.id ? "sel" : ""} ${st === "failed" ? "failed" : ""}" onclick="P.open='${s.id}';renderProto()">
+            ${st === "stale" ? `<span class="corner tag t-warn">原稿已改</span>` : ""}
+            ${pic}
+            <div class="row" style="font-size:12px"><b class="mono">${String(s.seq + 1).padStart(2, "0")}</b><span class="muted">${s.seconds}s · ${n} 镜</span><span class="spacer"></span>${STATUS_TAG[st]}</div>
+          </button>`;
+        }).join("");
+        return `<div class="p-body">${rail()}<div class="p-main">
+          <div class="row wrapflex">
+            <b>第 3 集 · 相识</b><span class="muted" style="font-size:12px">${P.segs.length} 个片段</span>
+            <span class="spacer"></span>
+            <select class="field" style="width:auto;height:30px;padding:0 8px" onchange="P.imgModel=this.value"><option>场景模型 · 示意 Image-2</option><option>人物模型 · 示意 Portrait-1</option></select>
+            <button class="btn btn-amber" ${todo.length ? "" : "disabled title='全部已完成且未过期'"} onclick="P.dialog='batch';renderProto()"><i data-lucide="sparkles"></i>生成本集故事板${todo.length ? `（${todo.length}）` : ""}</button>
+          </div>
+          <div class="wall">${cards}</div>
+          ${P.open ? drawer() : ""}
+        </div></div>`;
+      }
+      function drawer() {
+        const s = seg(P.open);
+        const st = statusOf(s);
+        const c = chosenOf(s);
+        const n = shots(s.prompt).length;
+        const L = layoutOf(n);
+        const last = s.boards[s.boards.length - 1];
+        const big = c && c.status === "done" ? boardHTML(c, { text: true, dim: st === "running" }) : `<div class="ph ${st === "running" ? "run" : ""}">${st === "running" ? "生成中…" : "还没有采用的故事板"}</div>`;
+        const vers = s.boards.map((b, i) => `<button class="ver ${b.id === s.chosen ? "on" : ""}" title="${b.status === "done" ? "点击改为采用" : ""}" onclick="pickVer('${s.id}','${b.id}')">
+            ${b.status === "done" ? boardHTML(b) : `<div class="ph ${b.status === "running" ? "run" : ""}" style="font-size:10px;padding:2px">${b.status === "running" ? "…" : "失败"}</div>`}
+            <span class="vtag">${b.source === "upload" ? "上传" : "v" + (i + 1)}</span></button>`).join("");
+        return `<div class="drawer">
+          <div class="row"><b>片段 ${String(s.seq + 1).padStart(2, "0")} · 故事板</b>${STATUS_TAG[st]}<span class="spacer"></span><button class="btn btn-sm" onclick="P.open=null;renderProto()"><i data-lucide="x"></i></button></div>
+          ${st === "stale" ? `<div class="callout c-warn" style="font-size:12.5px"><i data-lucide="triangle-alert"></i><div>原稿在出图之后改过。生视频时仍会带这张旧图，建议重新生成。</div></div>` : ""}
+          ${st === "failed" ? `<div class="callout c-bad" style="font-size:12.5px"><i data-lucide="circle-x"></i><div><b>最新一版生成失败：</b>${esc(last.err)}。${c ? "仍在使用之前采用的版本。" : ""}可以改补充说明后重试，或上传一张图。</div></div>` : ""}
+          ${n === 0 ? `<div class="callout c-warn" style="font-size:12.5px"><i data-lucide="triangle-alert"></i><div>没识别到时间轴，按 4 格生成。</div></div>` : ""}
+          <div style="max-width:220px;margin:0 auto;width:100%">${big}</div>
+          <div><div class="muted" style="font-size:12px;margin-bottom:4px">版本（金框为采用）</div><div class="vers">${vers || `<span class="muted" style="font-size:12px">暂无</span>`}</div></div>
+          <div class="row wrapflex">
+            <button class="btn btn-outline btn-sm" onclick="uploadVer('${s.id}')"><i data-lucide="upload"></i>上传替换</button>
+            <button class="btn btn-outline btn-sm" ${c && c.status === "done" ? "" : "disabled"} onclick="delVer('${s.id}')"><i data-lucide="trash-2"></i>删除采用版</button>
+          </div>
+          <div>
+            <div class="muted" style="font-size:12px;margin-bottom:4px">画面补充说明（可选，≤300 字）</div>
+            <textarea class="field" id="noteIn" maxlength="300" placeholder="例如：低机位，更强的压迫感">${esc(last && last.status !== "done" ? last.note : "")}</textarea>
+          </div>
+          <button class="btn btn-amber" ${st === "running" ? "disabled" : ""} onclick="startBoard('${s.id}', $('#noteIn').value)"><i data-lucide="sparkles"></i>${s.boards.length ? "重新生成" : "生成"} · ${L.key.replace("x", "×")} · 约 ${COST} 积分</button>
+          <details>
+            <summary class="muted" style="font-size:12px;cursor:pointer">片段原稿（改动后保存，故事板会过期）</summary>
+            <textarea class="field mono" id="promptIn" style="min-height:200px;margin-top:6px;font-size:11.5px">${esc(s.prompt)}</textarea>
+            <button class="btn btn-outline btn-sm" style="margin-top:6px" onclick="savePrompt('${s.id}')">保存原稿</button>
+            <div class="muted" style="font-size:11px;margin-top:4px">真实产品里原稿在片场编辑，这里放进来方便演示过期。</div>
+          </details>
+        </div>`;
+      }
+      function pickVer(sid, bid) {
+        const s = seg(sid); const b = s.boards.find((x) => x.id === bid);
+        if (b.status !== "done") return toast(b.status === "running" ? "生成中的版本不能采用" : "失败的版本不能采用", "warn");
+        s.chosen = bid; s.rev++; renderProto(); toast("已改为采用这一版");
+      }
+      function uploadVer(sid) {
+        const s = seg(sid);
+        const b = mkBoard(s, { source: "upload" });
+        s.boards.push(b); s.chosen = b.id; s.rev++; renderProto(); toast("已上传并采用（模拟）");
+      }
+      function delVer(sid) {
+        const s = seg(sid);
+        s.boards = s.boards.filter((b) => b.id !== s.chosen);
+        const ok = [...s.boards].reverse().find((b) => b.status === "done");
+        s.chosen = ok ? ok.id : null; s.rev++; renderProto();
+        toast(ok ? "已删除，改为采用最新的成功版本" : "已删除，这个片段现在没有故事板", "warn");
+      }
+      function savePrompt(sid) {
+        const s = seg(sid); const v = $("#promptIn").value;
+        if (v === s.prompt) return toast("原稿没有变化", "warn");
+        s.prompt = v; s.seconds = Math.max(3, shots(v).length * 3); s.rev++; renderProto();
+        toast(statusOf(s) === "stale" ? "已保存，故事板已过期" : "已保存");
+      }
+      function dialogHTML() {
+        if (P.dialog === "batch") {
+          const list = P.segs.filter((s) => !["ready", "running"].includes(statusOf(s)));
+          const skip = P.segs.length - list.length;
+          return `<div class="mask"><div class="dialog">
+            <b>生成本集故事板</b>
+            <dl class="kv"><dt>要生成</dt><dd>${list.map((s) => String(s.seq + 1).padStart(2, "0")).join("、")}（${list.length} 段，含失败和已过期）</dd>
+            <dt>跳过</dt><dd>${skip} 段（已完成且未过期，或正在生成）</dd>
+            <dt>图片模型</dt><dd>${esc(P.imgModel)}</dd>
+            <dt>预计积分</dt><dd><b>${list.length * COST}</b> <span class="muted">（示意）</span></dd></dl>
+            <div class="muted" style="font-size:12px">新版成功后自动采用；旧版保留在版本列表里。</div>
+            <div class="row" style="justify-content:flex-end"><button class="btn" onclick="P.dialog=null;renderProto()">取消</button>
+            <button class="btn btn-amber" onclick="runBatch()">确认生成</button></div>
+          </div></div>`;
+        }
+        return "";
+      }
+      function runBatch() {
+        const list = P.segs.filter((s) => !["ready", "running"].includes(statusOf(s)));
+        P.dialog = null;
+        list.forEach((s) => startBoard(s.id));
+        toast(`已提交 ${list.length} 个故事板任务（模拟）`);
+      }
+
+      /* ---- 片场：参考素材条与请求组装 ---- */
+      const MODELS = {
+        seedance: { name: "Seedance 2.0", op: "omni", max: 9, desc: "全能参考，参考图 ≤ 9" },
+        vidu: { name: "示意 Omni-Lite", op: "omni", max: 3, desc: "全能参考，参考图 ≤ 3" },
+        kling: { name: "示意 I2V", op: "i2v", max: 1, desc: "图生视频，第一张图是首帧" },
+        t2v: { name: "示意 T2V", op: "t2v", max: 0, desc: "只能文生视频" },
+      };
+      const BOARD_LINE = "参考图1是本段的分镜宫格图，按格子编号顺序对应时间轴镜头，只参考构图、站位与景别，成片画面中不出现宫格线和编号。";
+      /** 与「数据与接口」页伪代码一致：返回 images 序列、截断项、说明行、故事板芯片状态 */
+      function plan({ prompt, model, boardState, boardOn, boardLabel }) {
+        const m = MODELS[model];
+        const refs = [...new Set([...prompt.matchAll(/@\[([^\]]+)\]\((\w+)\)/g)].map((x) => x[2]))].map((id) => ({ id, ...ASSETS[id] }));
+        const mains = refs.map((r) => ({ label: r.name + " 主图", kind: r.type }));
+        const voices = refs.filter((r) => r.hasVoice).map((r) => ({ label: r.name + " 声音", kind: "voice" }));
+        const extras = refs.flatMap((r) => Array.from({ length: r.extra || 0 }, (_, i) => ({ label: `${r.name} 补充图 ${i + 1}`, kind: "extra" })));
+        const usable = ["ready", "stale"].includes(boardState);
+        let chip, reason = "";
+        if (!boardOn) { chip = "off"; reason = "本次已关闭"; }
+        else if (!usable) { chip = boardState; reason = { empty: "未生成", running: "生成中，暂无可用版本", failed: "生成失败，暂无可用版本" }[boardState]; }
+        else if (m.op !== "omni" || m.max <= 0) { chip = "unsupported"; reason = m.op === "i2v" ? "当前模型把第一张图当首帧，未带入" : "当前模型不收参考图，未带入"; }
+        else chip = boardState === "stale" ? "stale" : "image";
+        const withBoard = chip === "image" || chip === "stale";
+        const imgs = m.op === "t2v" ? [] : [...(withBoard ? [{ label: "故事板宫格图", kind: "board" }] : []), ...mains, ...extras];
+        const kept = imgs.slice(0, m.max), dropped = imgs.slice(m.max);
+        const warn = [];
+        if (!withBoard) warn.push("未引用故事板");
+        if (chip === "stale") warn.push("故事板已过期");
+        if (dropped.length) warn.push(`参考图最多 ${m.max} 张，多余的未带入`);
+        return { m, chip, reason, withBoard, kept, dropped, voices: m.op === "omni" ? voices : [], warn, prompt: (withBoard ? BOARD_LINE + "\n" : "") + prompt };
+      }
+      function studioArea() {
+        const s = seg(P.studioSeg);
+        const st = statusOf(s);
+        const c = chosenOf(s);
+        const boardState = st === "running" && c ? (c.hash === hash(s.prompt) ? "ready" : "stale") : st === "failed" && c ? (c.hash === hash(s.prompt) ? "ready" : "stale") : st;
+        const r = plan({ prompt: s.prompt, model: P.model, boardState, boardOn: P.boardOn });
+        const chipTxt = { image: "故事板", stale: "故事板 · 已过期", off: "故事板 · 已关闭", empty: "故事板 · 未生成", running: "故事板 · 生成中", failed: "故事板 · 失败", unsupported: "故事板 · 未带入" }[r.chip];
+        const chipTone = { stale: "t-warn", failed: "t-bad", unsupported: "t-warn" }[r.chip];
+        const refChips = [...new Set([...s.prompt.matchAll(/@\[([^\]]+)\]\((\w+)\)/g)].map((x) => x[2]))].map((id) => `<span class="chip"><span class="th"><i data-lucide="${ASSETS[id].type === "character" ? "user" : ASSETS[id].type === "scene" ? "image" : "box"}"></i></span>${esc(ASSETS[id].name)}</span>`).join("");
+        return `<div class="p-body"><div class="p-rail"><div class="muted" style="font-size:11px;padding:0 6px">第 3 集 · 片段</div><div class="seglist">${P.segs.map((x) => `<button class="segrow" aria-selected="${x.id === P.studioSeg}" onclick="P.studioSeg='${x.id}';renderProto()"><span class="mono">${String(x.seq + 1).padStart(2, "0")}</span><span class="spacer"></span>${STATUS_TAG[statusOf(x)]}</button>`).join("")}</div></div>
+          <div class="p-main" style="display:grid;gap:12px;align-content:start">
+            <div class="row wrapflex"><b>片段 ${String(s.seq + 1).padStart(2, "0")}</b><span class="muted" style="font-size:12px">${s.seconds}s</span><span class="spacer"></span>
+              <select class="field" style="width:auto;height:30px;padding:0 8px" onchange="P.model=this.value;renderProto()">${Object.entries(MODELS).map(([k, m]) => `<option value="${k}" ${k === P.model ? "selected" : ""}>${m.name}（${m.desc}）</option>`).join("")}</select></div>
+            <div>
+              <div class="muted" style="font-size:12px;margin-bottom:6px">参考素材</div>
+              <div class="row wrapflex">
+                <span class="chip board-chip ${r.withBoard ? "" : "off"}" title="${esc(r.reason)}"><span class="th">${c && c.status === "done" ? `<div style="width:26px">${boardHTML(c)}</div>` : `<i data-lucide="layout-grid"></i>`}</span>${chipTxt}${chipTone ? `<span class="tag ${chipTone}" style="height:16px;font-size:10px">${esc(r.reason || "原稿已改")}</span>` : ""}
+                  <button class="switch amber" style="transform:scale(.8)" role="switch" aria-checked="${P.boardOn}" onclick="P.boardOn=!P.boardOn;renderProto()" aria-label="本次带上故事板"></button></span>
+                ${refChips}
+              </div>
+            </div>
+            <div><div class="muted" style="font-size:12px;margin-bottom:4px">发给模型的提示词（开头预览）</div>
+              <div class="codeblock" style="font-size:11.5px;max-height:120px;overflow:auto"><pre>${r.withBoard ? `<span style="color:rgb(var(--amber))">${esc(BOARD_LINE)}</span>\n` : ""}${esc(s.prompt.split("\n").slice(0, 3).join("\n"))}\n…</pre></div></div>
+            <div class="row wrapflex">
+              ${r.warn.map((w) => `<span class="tag ${w.includes("过期") ? "t-warn" : "t-mute"}">${esc(w)}</span>`).join("")}
+              <span class="spacer"></span>
+              ${!r.withBoard && ["empty", "failed"].includes(r.chip) ? `<button class="btn btn-outline btn-sm" onclick="P.area='board';P.open='${s.id}';renderProto()">先去出故事板</button>` : ""}
+              <button class="btn btn-amber" onclick="toast('已提交视频任务（模拟）：${r.kept.length} 张参考图${r.withBoard ? "，含故事板" : ""}')"><i data-lucide="clapperboard"></i>生成视频</button>
+            </div>
+            <div class="muted" style="font-size:11.5px">请求里 <code>input.images</code>：${r.kept.map((x) => esc(x.label)).join(" → ") || "无"}${r.dropped.length ? `；<span style="color:rgb(var(--warn))">截掉：${r.dropped.map((x) => esc(x.label)).join("、")}</span>` : ""}</div>
+          </div></div>`;
+      }
+      function overviewArea() {
+        const done = P.segs.filter((s) => statusOf(s) === "ready").length;
+        const cell = (t, tone) => `<td><span class="tag ${tone}" style="width:100%;justify-content:center;height:26px">${t}</span></td>`;
+        return `<div class="p-main" style="grid-column:1/-1"><b>分集进度</b><div class="cmp-wrap note" style="margin-top:10px"><table class="cmp"><thead><tr><th></th><th>剧本</th><th>拆解</th><th>分镜</th><th style="color:rgb(var(--violet))">故事板 · 新</th><th>片段</th><th>成片</th></tr></thead><tbody>
+          <tr><th>第 1 集</th>${cell("✓", "t-ok")}${cell("✓", "t-ok")}${cell("✓", "t-ok")}${cell("4/4", "t-ok")}${cell("4/4", "t-ok")}${cell("✓", "t-ok")}</tr>
+          <tr><th>第 2 集</th>${cell("✓", "t-ok")}${cell("✓", "t-ok")}${cell("✓", "t-ok")}${cell("0/5", "t-warn")}${cell("0/5", "t-warn")}${cell("未合成", "t-mute")}</tr>
+          <tr><th>第 3 集</th>${cell("✓", "t-ok")}${cell("✓", "t-ok")}${cell("✓", "t-ok")}${cell(`${done}/${P.segs.length}`, done === P.segs.length ? "t-ok" : "t-warn")}${cell("0/6", "t-warn")}${cell("未合成", "t-mute")}</tr>
+        </tbody></table></div><div class="note-txt">故事板列只显示进度，不作为前置门槛：片段列不会因为故事板没齐而变成不可点；「继续制作」也不会把人引到故事板。</div></div>`;
+      }
+
+      /* ================= 交互演示 ================= */
+      const D = { model: "seedance", state: "done", on: true };
+      function renderDemo() {
+        $("#modelList").innerHTML = Object.entries(MODELS).map(([k, m]) => `<button class="opt" aria-selected="${D.model === k}" onclick="D.model='${k}';renderDemo()"><b>${m.name}</b><small>${m.desc}</small></button>`).join("");
+        $("#boardSw").setAttribute("aria-checked", String(D.on));
+        const r = plan({ prompt: SEED[1], model: D.model, boardState: D.state, boardOn: D.on });
+        const ic = { board: "layout-grid", character: "user", scene: "image", prop: "box", extra: "images", voice: "audio-lines" };
+        $("#planPanel").innerHTML = `
+          <div class="row wrapflex"><b>示例：第 3 集片段 02</b><span class="muted" style="font-size:12px">引用 周家厨房、闰土、迅哥儿</span></div>
+          <div class="callout ${r.withBoard ? (r.chip === "stale" ? "c-warn" : "c-ok") : "c-warn"}" style="margin-top:12px">
+            <i data-lucide="${r.withBoard ? "check" : "info"}"></i>
+            <div>${r.withBoard ? (r.chip === "stale" ? "<b>带上了故事板，但已过期。</b>生成按钮旁提示「故事板已过期」，仍可提交。" : "<b>带上了故事板</b>，排第 1 张参考图。") : `<b>没有带故事板：</b>${esc(r.reason)}。照样可以生成，按钮旁提示「未引用故事板」。`}</div>
+          </div>
+          <div class="grid g2" style="margin-top:12px">
+            <div>
+              <div class="muted" style="font-size:12px;margin-bottom:6px">input.images（${r.kept.length}/${r.m.max}）</div>
+              <div class="imgs">${r.kept.map((x, i) => `<div class="imgrow"><span class="mono muted">${i + 1}</span><i data-lucide="${ic[x.kind] || "image"}"></i>${esc(x.label)}${x.kind === "board" ? ` <span class="tag t-violet">自动</span>` : ""}</div>`).join("") || `<div class="muted" style="font-size:12.5px">${r.m.op === "t2v" ? "文生视频，不带图" : "无"}</div>`}
+              ${r.dropped.map((x) => `<div class="imgrow drop"><i data-lucide="${ic[x.kind] || "image"}"></i>${esc(x.label)}（超出上限）</div>`).join("")}</div>
+              ${r.voices.length ? `<div class="muted" style="font-size:12px;margin:10px 0 6px">input.audios</div><div class="imgs">${r.voices.map((v) => `<div class="imgrow"><i data-lucide="audio-lines"></i>${esc(v.label)}</div>`).join("")}</div>` : ""}
+            </div>
+            <div>
+              <div class="muted" style="font-size:12px;margin-bottom:6px">prompt 开头</div>
+              <div class="codeblock" style="font-size:11.5px"><pre>${r.withBoard ? `<span style="color:rgb(var(--amber))">${esc(BOARD_LINE)}</span>\n` : ""}${esc(SEED[1].split("\n").slice(0, 2).join("\n"))}\n…</pre></div>
+              <div class="muted" style="font-size:12px;margin:10px 0 6px">生成方式</div>
+              <code>${r.m.op}</code>
+              <div class="row wrapflex" style="margin-top:10px">${r.warn.map((w) => `<span class="tag ${w.includes("过期") ? "t-warn" : "t-mute"}">${esc(w)}</span>`).join("")}</div>
+            </div>
+          </div>`;
+        icons();
+      }
+      $("#boardState").addEventListener("change", (e) => { D.state = e.target.value; renderDemo(); });
+      $("#boardSw").addEventListener("click", () => { D.on = !D.on; renderDemo(); });
+
+      renderDemo();
+      renderProto();
+      icons();
+    </script>
+  </body>
+</html>

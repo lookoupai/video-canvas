@@ -29,6 +29,7 @@ import (
 	"video-canvas/internal/pkg/logger"
 	"video-canvas/internal/pkg/videoframe"
 	"video-canvas/internal/pkg/ws"
+	"video-canvas/internal/provider/arkasset"
 	"video-canvas/internal/provider/fx"
 	"video-canvas/internal/provider/plugin"
 	"video-canvas/internal/provider/pluginrunner"
@@ -156,13 +157,16 @@ func NewApp(cfg *config.Config) (*App, error) {
 		closeDB(db)
 		return nil, err
 	}
+	virtualHumanRepo := repository.NewVirtualHumanRepository(db)
+	filedAssets := service.NewFiledAssetResolver(virtualHumanRepo)
 	executor := plugin.New(plugin.Options{
-		Runner:    runnerClient,
-		Codes:     pluginCodeStore{repo: aiPluginRepo},
-		Secrets:   aiCfgSvc,
-		Assets:    assetSvc,
-		Saver:     assetSvc,
-		IPAllowed: outboundIPPolicy(cfg),
+		Runner:      runnerClient,
+		Codes:       pluginCodeStore{repo: aiPluginRepo},
+		Secrets:     aiCfgSvc,
+		Assets:      assetSvc,
+		Saver:       assetSvc,
+		FiledAssets: filedAssets, // 真人库里备案可用的图片换成 asset://
+		IPAllowed:   outboundIPPolicy(cfg),
 	})
 
 	// 生成任务：提交 / 对账 / 取消 / 积分事务
@@ -183,11 +187,12 @@ func NewApp(cfg *config.Config) (*App, error) {
 	dramaRepo := repository.NewDramaRepository(db)
 	dramaReferenceRepo := repository.NewDramaReferenceRepository(db)
 	dramaReferenceSvc := service.NewDramaReferenceService(service.DramaReferenceDeps{Repo: dramaReferenceRepo, Assets: assetSvc, Analyzer: reference.NewAnalyzer()})
-	dramaCanvasSvc := service.NewDramaCanvasService(repository.NewDramaCanvasRepository(db), hub)
+	dramaCanvasRepo := repository.NewDramaCanvasRepository(db)
+	dramaCanvasSvc := service.NewDramaCanvasService(dramaCanvasRepo, hub)
 	composeVideo := videoframe.New(videoframe.Options{Timeout: 10 * time.Minute})
 	marketingRepo := repository.NewMarketingRepository(db)
 	dramaSegments := service.NewDramaSegmentService(service.DramaSegmentDeps{
-		Repo: dramaRepo, Tasks: taskSvc, Assets: assetSvc, Broadcaster: hub,
+		Repo: dramaRepo, Tasks: taskSvc, Assets: assetSvc, Broadcaster: hub, Canvas: dramaCanvasRepo,
 		Intents:        repository.NewDramaSegmentIntentRepository(db),
 		ReferenceClips: service.NewRemakeMediaService(marketingRepo, assetSvc, composeVideo),
 	})
@@ -227,7 +232,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 		Repo: marketingRepo, Steps: stepRegistry, Resolver: stepSvc.Resolver(), Caller: stepCaller, Models: aiCfgSvc,
 		Assets: assetSvc, Tasks: taskSvc, Canvases: canvasProjectSvc, Frames: newVideoFrames(), Credits: settingsSvc, Broadcaster: hub,
 	})
-	// 生成任务的关联业务观察者：短剧片段和营销脚本各按节点前缀认领自己的任务。
+	// 生成任务的关联业务观察者：短剧片段和营销脚本各按节点前缀认领自己的任务；短剧画布上的故事板图片任务由片段服务认领。
 	taskSvc.SetTaskObserver(service.TaskObservers{dramaSegments, marketingSvc})
 	// 分镜表拆分镜：异步任务，提交、worker 执行和推送都在这个服务里；队列晚于它创建，入队器稍后回填到仓储
 	storyboardSvc := service.NewStoryboardService(service.StoryboardDeps{
@@ -266,6 +271,9 @@ func NewApp(cfg *config.Config) (*App, error) {
 	// 插件与渠道管理同助手共用服务；审批写入复用原有预检、校验与版本分配。
 	aiPluginSvc := service.NewAIPluginService(aiPluginRepo, aiCfgSvc, aiChannelRepo, plugin.NewPrechecker(runnerClient), aiCfgSvc)
 	aiChannelSvc := service.NewAIChannelService(aiChannelRepo, aiCfgSvc, aiCfgSvc, executor, aiChannelRepo, aiCfgSvc)
+	// 方舟虚拟人像库：真人库和生成时的审核状态查询共用一个客户端；解析器比渠道服务先建，这里补上备案目标
+	arkAssets := arkasset.New(arkasset.Options{})
+	filedAssets.UseFiling(aiChannelSvc, arkAssets)
 	adminAuditRepo := repository.NewAdminAssistantRepository(db)
 	adminUsers := service.NewAdminUserService(userRepo, auditRepo, settingsSvc, service.WithAdminControls(service.AdminControls{
 		Credits: taskRepo, // 积分调整与任务冻结 / 结算共用 LockCredit 行锁
@@ -398,6 +406,10 @@ func NewApp(cfg *config.Config) (*App, error) {
 		AssetLibrary: handler.NewAssetLibraryHandler(service.NewAssetLibraryService(service.AssetLibraryDeps{
 			Folders: repository.NewAssetFolderRepository(db), Items: repository.NewAssetLibraryRepository(db),
 			Assets: assetRepo, Canvases: canvasProjectRepo, Views: assetSvc,
+		})),
+		VirtualHuman: handler.NewVirtualHumanHandler(service.NewVirtualHumanService(service.VirtualHumanDeps{
+			Repo: virtualHumanRepo, Canvases: canvasProjectRepo, Assets: assetSvc, AssetRows: assetRepo, Views: assetSvc,
+			Filing: aiChannelSvc, Client: arkAssets,
 		})),
 		Files:        handler.NewFilesHandler(assetSvc),
 		AIModel:      handler.NewAIModelHandler(aiCfgSvc),

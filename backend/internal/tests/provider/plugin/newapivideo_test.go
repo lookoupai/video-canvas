@@ -103,7 +103,7 @@ func newAPIVideoJSON(body string) func(w http.ResponseWriter, _ *http.Request, _
 
 func TestNewAPIVideoPrecheckAndMeta(t *testing.T) {
 	env := newNewAPIVideoEnv(t, nil)
-	if env.meta.Key != "new-api-video" || env.meta.Version != "1.1.0" || env.meta.Auth.Type != pluginmeta.AuthBearer || env.meta.Vendor != "new-api" {
+	if env.meta.Key != "new-api-video" || env.meta.Version != "1.1.1" || env.meta.Auth.Type != pluginmeta.AuthBearer || env.meta.Vendor != "new-api" {
 		t.Fatalf("meta 不符合预期：%+v", env.meta)
 	}
 	if ep, ok := env.meta.Endpoint("video"); !ok || ep.Mode != pluginmeta.ModeAsync || ep.Method != "POST" || ep.Path != "/v1/videos" {

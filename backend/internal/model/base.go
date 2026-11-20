@@ -62,6 +62,8 @@ func All() []any {
 		&ConversationRecord{},
 		&AssetFolder{},
 		&AssetLibraryItem{},
+		&VirtualHuman{},
+		&VirtualHumanImage{},
 		&DramaProject{},
 		&DramaSourceDraft{},
 		&DramaUnit{},

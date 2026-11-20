@@ -13,7 +13,9 @@ import {
 } from "@/components/canvas-editor/node-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { EnrollDialog } from "@/components/virtual-human/enroll-dialog";
 import { useRemoteModels } from "@/hooks/use-models";
+import { useVirtualHumans } from "@/hooks/use-virtual-humans";
 import { BottomToolbar } from "@/pages/canvas/chrome/bottom-toolbar";
 import { ViewControls } from "@/pages/canvas/chrome/view-controls";
 import { openShortcuts } from "@/pages/canvas/shortcuts-state";
@@ -37,6 +39,8 @@ import {
 import { isActiveJob, writingAssetPrompts } from "@/utils/drama/jobs";
 import { planFileDrop } from "@/utils/canvas/fill-upload";
 import { lowestUnit } from "@/utils/pricing/quote";
+import { enrollTarget, humanOfAsset } from "@/utils/virtual-human/virtual-human";
+import type { AssetDto } from "@/api/asset/type";
 
 import { AddAssetCard, AssetCard, TYPE_ICON } from "./asset-card";
 import { useAssetsUi } from "./assets-ui";
@@ -167,6 +171,21 @@ function AssetList({ items }: { items: AssetItem[] }) {
     const ids = new Set(candidates.map((item) => item.id));
     return shown.filter((item) => ids.has(item.id)).map((item) => item.id);
   }, [candidates, shown]);
+
+  /**
+   * 真人库：已有形象图的角色卡可以把形象图加入真人库备案。管理员没配置虚拟人像库时不给入口，
+   * 已在真人库里的图只显示状态；还没生成形象、上传中、生成中的卡都没有按钮。
+   */
+  const humans = useVirtualHumans(true);
+  const ownerOf = useMemo(() => humanOfAsset(humans.humans ?? []), [humans.humans]);
+  const [enrolling, setEnrolling] = useState<AssetDto | null>(null);
+  const enrollOf = (item: AssetItem) => {
+    const asset = ui.multi ? null : enrollTarget(item);
+    if (!asset) return undefined;
+    const human = ownerOf.get(asset.id) ?? null;
+    if (!human && !humans.filingReady) return undefined;
+    return { human, onEnroll: () => setEnrolling(asset) };
+  };
 
   const { setMulti, setSelected, multi } = ui;
   const {
@@ -371,8 +390,18 @@ function AssetList({ items }: { items: AssetItem[] }) {
                 onEditCharacter={() => useCharacterDetail.getState().open(item.id)}
                 onUpload={() => editor.fill.pickFile(item.id)}
                 onPickLibrary={() => editor.fill.pickAsset(item.id)}
+                enroll={enrollOf(item)}
               />
             ))}
+            <EnrollDialog
+              asset={enrolling}
+              humans={humans.humans ?? []}
+              onClose={() => setEnrolling(null)}
+              onDone={(human) => {
+                humans.upsert(human);
+                toast.success(`已加入「${human.name}」，正在备案`);
+              }}
+            />
             <AddAssetCard
               type={ui.type}
               scope={
@@ -492,12 +521,11 @@ function useApplyModelSwitch(dramaId: string, items: AssetItem[]) {
   }, [dramaId, imageModels.models, imageModels.status, items, pending]);
 }
 
-/** 画布视图下的外壳：左上资产库浮窗、底部居中横排工具条、视图控件、操作提示 */
-function CanvasChrome({ items }: { items: AssetItem[] }) {
+/** 画布视图的底部工具：居中横排工具条、左下视图控件；资产管理和故事板共用 */
+export function CanvasTools() {
   const editor = useCanvasEditor();
   return (
     <>
-      <LibraryFloat items={items} />
       <ChromeZone position="bottom-center">
         <BottomToolbar
           orientation="horizontal"
@@ -519,6 +547,16 @@ function CanvasChrome({ items }: { items: AssetItem[] }) {
           onOpenShortcuts={openShortcuts}
         />
       </ChromeZone>
+    </>
+  );
+}
+
+/** 画布视图下的外壳：左上资产库浮窗、底部工具、操作提示 */
+function CanvasChrome({ items }: { items: AssetItem[] }) {
+  return (
+    <>
+      <LibraryFloat items={items} />
+      <CanvasTools />
       <ChromeZone position="bottom-right" className="max-md:hidden">
         <ChromePill className="text-muted-foreground gap-1.5 px-3 text-xs">
           <Hand className="size-3.5" />

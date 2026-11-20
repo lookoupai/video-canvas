@@ -282,6 +282,28 @@ export function applyPickedAssets(
   return { patch: next === character ? {} : { character: next }, warnings };
 }
 
+/**
+ * 从真人库引入：真人的可用图片依次放进角色卡，第一张作主图、其余替换补充图（最多 4 张，去掉与主图重复的）。
+ * 之后角色卡上的图片照常可以换、删、加；生成时可用的备案图会由后端换成 asset:// 引用。
+ * @param data 节点数据
+ * @param images 真人里可用的图片，按顺序
+ * @returns 要写回节点的 patch；没有图时为空对象
+ */
+export function applyHumanImages(
+  data: CanvasNodeData,
+  images: ReadonlyArray<Pick<AssetDto, "id" | "url">>,
+): Partial<CanvasNodeData> {
+  const [main, ...rest] = images;
+  if (!main) return {};
+  const withMain = applyMainImage(data, main);
+  const base = withMain.character ?? emptyCharacter(data.label);
+  const extras = rest
+    .filter((img) => img.id !== main.id)
+    .slice(0, MAX_EXTRAS)
+    .map((img) => ({ assetId: img.id, src: img.url }));
+  return pickChanged(data, { ...withMain, character: { ...base, extras } });
+}
+
 /** 主图写回只带真正变了的字段，避免把整份节点数据当 patch 塞回去 */
 function pickChanged(before: CanvasNodeData, after: CanvasNodeData): Partial<CanvasNodeData> {
   const patch: Partial<CanvasNodeData> = {};

@@ -211,16 +211,17 @@ func (r *dramaMemory) ReplaceSegments(_ context.Context, userID, episodeID uint6
 func (r *dramaMemory) HasSegmentTakes(context.Context, uint64, uint64) (bool, error) {
 	return r.hasTakes, nil
 }
-func (r *dramaMemory) Summary(ctx context.Context, userID, episodeID uint64) (count, seconds, done int, err error) {
+func (r *dramaMemory) Summary(ctx context.Context, userID, episodeID uint64, _ map[string]string) (model.DramaSegmentStats, error) {
+	var stats model.DramaSegmentStats
 	segments, err := r.Segments(ctx, userID, episodeID)
 	for _, segment := range segments {
-		count++
-		seconds += segment.Seconds
+		stats.Count++
+		stats.Seconds += segment.Seconds
 		if segment.ChosenTaskID != nil {
-			done++
+			stats.Done++
 		}
 	}
-	return count, seconds, done, err
+	return stats, err
 }
 func (r *dramaMemory) GetByID(_ context.Context, userID, canvasID uint64) (*model.CanvasProject, error) {
 	if userID != r.project.UserID || canvasID != r.project.CanvasID {
@@ -414,6 +415,24 @@ type dramaPipelineCanvas struct {
 	filtered []service.DramaCanvasAsset
 	// deleted 记录删集调用：短剧 id、画布 id、集号
 	deleted [][3]uint64
+	// synced 记录故事板同步调用；syncErr 非空时同步返回它
+	synced  []boardSync
+	syncErr error
+}
+
+// boardSync 是一次故事板同步调用的参数。
+type boardSync struct {
+	canvasID  uint64
+	episodeNo int
+	segments  []service.DramaBoardSegment
+}
+
+func (c *dramaPipelineCanvas) SyncBoards(_ context.Context, _, canvasID uint64, episodeNo int, segments []service.DramaBoardSegment) error {
+	if c == nil { // 很多测试给服务传 nil 画布（装进接口后不是 nil 接口），不关心故事板
+		return nil
+	}
+	c.synced = append(c.synced, boardSync{canvasID: canvasID, episodeNo: episodeNo, segments: segments})
+	return c.syncErr
 }
 
 func (c *dramaPipelineCanvas) DeleteEpisode(_ context.Context, _, dramaID, canvasID uint64, no int) error {

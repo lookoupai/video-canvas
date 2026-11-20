@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>片场故事板原型</title>
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --panel: #111113;
+    --chrome: rgba(255, 255, 255, 0.055);
+    --chrome-hover: rgba(255, 255, 255, 0.09);
+    --chrome-border: rgba(255, 255, 255, 0.1);
+    --fg: #f4f4f5;
+    --muted: #8b8b93;
+    --dim: #5b5b63;
+    --primary: #f5b83d;
+    --primary-fg: #1a1205;
+    --danger: #f2655a;
+    --ok: #3ccf91;
+    --line: rgba(255, 255, 255, 0.07);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: 0.45; }
+  svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  /* ---------- 原型外壳：演示状态切换 + 设计说明 ---------- */
+  .proto-bar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px; border-bottom: 1px dashed rgba(245, 184, 61, 0.35);
+    background: repeating-linear-gradient(135deg, rgba(245,184,61,.05) 0 10px, transparent 10px 20px);
+    font-size: 12.5px; color: var(--muted);
+  }
+  .proto-bar b { color: var(--primary); font-weight: 600; }
+  .proto-bar .seg { margin-left: 4px; }
+  .proto-bar .grow { flex: 1; }
+
+  /* ---------- 通用清透胶囊 ---------- */
+  .pill {
+    display: inline-flex; align-items: center; gap: 2px; padding: 3px;
+    background: var(--chrome); border-radius: 999px;
+    box-shadow: inset 0 0 0 1px var(--chrome-border);
+    backdrop-filter: blur(20px) saturate(1.5);
+  }
+  .pill > button, .pill > span.item {
+    display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
+    border-radius: 999px; color: var(--muted); white-space: nowrap;
+  }
+  .pill > button:hover:not(:disabled) { background: var(--chrome-hover); color: var(--fg); }
+  .pill > button.on { background: var(--chrome-hover); color: var(--fg); box-shadow: inset 0 0 0 1px var(--chrome-border); }
+  .pill .sep { width: 1px; height: 16px; background: var(--chrome-border); margin: 0 2px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
+    border-radius: 999px; background: var(--chrome); box-shadow: inset 0 0 0 1px var(--chrome-border);
+    white-space: nowrap;
+  }
+  .btn:hover:not(:disabled) { background: var(--chrome-hover); }
+  .btn.primary { background: var(--primary); color: var(--primary-fg); box-shadow: none; font-weight: 600; }
+  .btn.primary:hover:not(:disabled) { filter: brightness(1.06); background: var(--primary); }
+  .btn.sm { height: 28px; padding: 0 11px; font-size: 12.5px; }
+  .num { font-variant-numeric: tabular-nums; opacity: 0.65; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+  /* ---------- 应用顶栏 ---------- */
+  .app { display: flex; flex-direction: column; height: calc(100vh - 43px); min-height: 640px; }
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; }
+  .topbar .grow { flex: 1; }
+  .stage-tabs > button { height: 34px; padding: 0 16px; font-size: 14.5px; }
+  .credits { font-family: ui-monospace, SFMono-Regular, monospace; font-weight: 700; color: var(--fg); }
+
+  /* ---------- 片场顶部条 ---------- */
+  .studio-bar {
+    display: flex; align-items: center; gap: 10px; padding: 8px 16px;
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  }
+  .studio-bar .title { font-weight: 600; }
+  .studio-bar .saved { color: var(--dim); font-size: 12px; }
+  .studio-bar .grow { flex: 1; }
+  .progress-pill { gap: 8px; }
+  .progress-pill .item { gap: 8px !important; }
+  .meter { width: 54px; height: 4px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .meter > i { display: block; height: 100%; background: var(--primary); border-radius: 4px; transition: width .4s; }
+
+  /* ---------- 主体三栏 ---------- */
+  .body { flex: 1; min-height: 0; display: grid; grid-template-columns: 210px minmax(0, 1fr) 380px; }
+  .col { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .col + .col { border-left: 1px solid var(--line); }
+  .col-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 8px; font-size: 12.5px; color: var(--muted); }
+
+  /* 资产库 */
+  .lib { padding: 4px 10px 12px; overflow: auto; display: grid; gap: 6px; }
+  .lib-item { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 10px; min-height: 44px; }
+  .lib-item:hover { background: var(--chrome-hover); }
+  .lib-thumb { width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0; }
+  .lib-item small { display: block; color: var(--dim); font-size: 11px; }
+
+  /* 中间预览 */
+  .preview { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; padding: 14px 20px 16px; gap: 14px; }
+  .preview::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(55% 45% at 50% 45%, rgba(245,184,61,.10), transparent 70%);
+  }
+  .preview > * { position: relative; }
+  .view-switch .badge { font-size: 11px; padding: 0 6px; height: 18px; border-radius: 9px; display: inline-flex; align-items: center; }
+  .stage-frame { flex: 1; min-height: 0; width: 100%; display: grid; place-items: center; }
+  .frame {
+    position: relative; border-radius: 16px; overflow: hidden; background: #18181b;
+    box-shadow: 0 20px 60px rgba(0,0,0,.45), inset 0 0 0 1px var(--chrome-border);
+  }
+  .frame.board { aspect-ratio: 16/9; width: min(100%, calc((100vh - 400px) * 16 / 9)); max-width: 860px; }
+  .frame.video { aspect-ratio: 9/16; height: min(100%, calc(100vh - 380px)); }
+  .grid { position: absolute; inset: 0; display: grid; gap: 3px; background: rgba(255,255,255,.85); }
+  .cell { position: relative; overflow: hidden; }
+  .cell .no {
+    position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(255,255,255,.9); color: #111; font-size: 11px; font-weight: 700; display: grid; place-items: center;
+  }
+  .cell .cap {
+    position: absolute; left: 8px; right: 8px; bottom: 6px; font-size: 11px; color: rgba(255,255,255,.75);
+    text-shadow: 0 1px 2px rgba(0,0,0,.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    opacity: 0; transition: opacity .2s;
+  }
+  .frame:hover .cap { opacity: 1; }
+  .cell.blank { background: #f3f3f3; }
+  .frame-empty {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    border: 1.5px dashed rgba(255,255,255,.16); border-radius: 16px;
+  }
+  .frame-empty .ico { width: 56px; height: 56px; border-radius: 18px; background: var(--chrome); display: grid; place-items: center; color: var(--muted); }
+  .frame-empty .ico svg { width: 26px; height: 26px; }
+  .frame-empty h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .frame-empty.error { border-color: rgba(242,101,90,.45); }
+  .frame-empty.error h3 { color: var(--danger); }
+  .frame-empty .why { color: var(--muted); font-size: 13px; margin-top: -8px; }
+  .shimmer {
+    position: absolute; inset: 0;
+    background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.08) 50%, transparent 70%);
+    background-size: 200% 100%; animation: sh 1.4s linear infinite;
+  }
+  @keyframes sh { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  .running-card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--muted); }
+  .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .stale-chip {
+    position: absolute; top: 12px; left: 12px; z-index: 3;
+    display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px 0 11px; border-radius: 999px;
+    background: rgba(20,16,8,.72); backdrop-filter: blur(14px); color: var(--primary); font-size: 12.5px;
+    box-shadow: inset 0 0 0 1px rgba(245,184,61,.35);
+  }
+  .stale-chip button { height: 22px; padding: 0 9px; border-radius: 999px; background: var(--primary); color: var(--primary-fg); font-size: 12px; font-weight: 600; }
+  .under { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .ver { display: inline-flex; gap: 4px; }
+  .ver button { width: 26px; height: 26px; border-radius: 50%; font-size: 11.5px; color: var(--muted); }
+  .ver button.on { background: var(--chrome-hover); color: var(--fg); box-shadow: inset 0 0 0 1px var(--chrome-border); }
+  .video-art { position: absolute; inset: 0; }
+  .video-art .play { position: absolute; inset: 0; display: grid; place-items: center; }
+  .video-art .play span { width: 54px; height: 54px; border-radius: 50%; background: rgba(0,0,0,.45); backdrop-filter: blur(10px); display: grid; place-items: center; }
+  .video-art .play svg { width: 22px; height: 22px; }
+  .video-meta { position: absolute; left: 12px; bottom: 12px; font-size: 12px; color: rgba(255,255,255,.8); }
+
+  /* 右侧编辑区 */
+  .editor { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 12px; min-height: 0; flex: 1; }
+  .refs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+  .ref {
+    flex-shrink: 0; width: 92px; border-radius: 12px; padding: 5px; background: var(--chrome);
+    box-shadow: inset 0 0 0 1px var(--chrome-border); position: relative;
+  }
+  .ref .thumb { height: 52px; border-radius: 8px; overflow: hidden; position: relative; }
+  .ref .name { font-size: 11.5px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ref .state { font-size: 10.5px; color: var(--muted); }
+  .ref.board { width: 120px; box-shadow: inset 0 0 0 1px rgba(245,184,61,.4); }
+  .ref.board.off { opacity: .5; box-shadow: inset 0 0 0 1px var(--chrome-border); }
+  .ref.board .tag { position: absolute; top: 9px; left: 9px; z-index: 2; font-size: 10px; padding: 0 5px; border-radius: 5px; background: var(--primary); color: var(--primary-fg); font-weight: 700; }
+  .ref.board .x { position: absolute; top: 9px; right: 9px; z-index: 2; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,.6); display: grid; place-items: center; }
+  .ref.board .x svg { width: 12px; height: 12px; }
+  .ref.board .state.warn { color: var(--primary); }
+  .prompt-box {
+    flex: 1; min-height: 0; border-radius: 16px; background: var(--chrome); box-shadow: inset 0 0 0 1px var(--chrome-border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .prompt-box textarea {
+    flex: 1; min-height: 0; resize: none; border: 0; outline: none; background: transparent; color: var(--fg);
+    padding: 12px 14px; font: 13px/1.75 ui-monospace, SFMono-Regular, "PingFang SC", monospace;
+  }
+  .prompt-foot { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--line); }
+  .prompt-foot .grow { flex: 1; }
+  .board-line { font-size: 12px; color: var(--muted); padding: 8px 14px 0; display: flex; gap: 6px; align-items: flex-start; }
+  .board-line b { color: var(--primary); font-weight: 600; }
+
+  /* 底部片段条 */
+  .clipbar { border-top: 1px solid var(--line); padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .clipbar-head { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); }
+  .clipbar-head .grow { flex: 1; }
+  .clips { display: flex; gap: 8px; overflow-x: auto; padding: 3px; }
+  .clip {
+    position: relative; height: 82px; flex-shrink: 0; border-radius: 10px; overflow: hidden; background: #1b1b1f;
+    box-shadow: inset 0 0 0 1px var(--chrome-border); cursor: pointer;
+  }
+  .clip:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); }
+  .clip.sel { box-shadow: 0 0 0 2px var(--primary), 0 0 0 5px rgba(245,184,61,.18); }
+  .clip .mini { position: absolute; inset: 0; }
+  .clip .mini.dim { opacity: .55; }
+  .clip .foot {
+    position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 6px; padding: 2px 7px;
+    font-size: 11px; background: rgba(10,10,11,.72); color: var(--muted); font-variant-numeric: tabular-nums;
+  }
+  .clip .foot .grow { flex: 1; }
+  .steps { display: inline-flex; gap: 3px; align-items: center; }
+  .steps i { width: 14px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.18); display: block; }
+  .steps i.done { background: var(--ok); }
+  .steps i.stale { background: var(--primary); }
+  .steps i.run { background: linear-gradient(90deg, var(--primary), rgba(245,184,61,.2)); animation: pulse 1s ease-in-out infinite alternate; }
+  .steps i.err { background: var(--danger); }
+  @keyframes pulse { to { opacity: .4; } }
+  .clip .center-ico { position: absolute; inset: 0 0 18px; display: grid; place-items: center; color: var(--dim); }
+
+  /* 无分镜空状态 */
+  .gate { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+  .gate .ico { width: 64px; height: 64px; border-radius: 20px; background: var(--chrome); display: grid; place-items: center; color: var(--muted); }
+  .gate .ico svg { width: 28px; height: 28px; }
+  .gate h3 { margin: 0; font-size: 17px; font-weight: 600; }
+
+  /* 设计说明抽屉 */
+  .notes {
+    position: fixed; right: 16px; bottom: 16px; width: 380px; max-height: min(70vh, 640px); overflow: auto; z-index: 50;
+    background: rgba(17,17,19,.92); backdrop-filter: blur(24px) saturate(1.5); border-radius: 18px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 0 0 1px var(--chrome-border); padding: 18px 20px; font-size: 13px;
+    display: none;
+  }
+  .notes.open { display: block; }
+  .notes h4 { margin: 14px 0 6px; font-size: 13px; color: var(--primary); }
+  .notes h4:first-child { margin-top: 0; }
+  .notes p, .notes li { color: #c9c9cf; margin: 4px 0; }
+  .notes ol, .notes ul { padding-left: 18px; margin: 4px 0; }
+  .notes code { font-size: 12px; background: rgba(255,255,255,.07); padding: 1px 5px; border-radius: 5px; }
+  .toast {
+    position: fixed; left: 50%; top: 64px; transform: translateX(-50%) translateY(-8px); opacity: 0; transition: .25s;
+    background: rgba(24,24,27,.95); padding: 9px 16px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--chrome-border);
+    font-size: 13px; z-index: 60; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 1100px) {
+    .body { grid-template-columns: minmax(0, 1fr) 340px; }
+    .col.lib-col { display: none; }
+  }
+  @media (max-width: 760px) {
+    .app { height: auto; }
+    .body { grid-template-columns: 1fr; }
+    .col + .col { border-left: 0; border-top: 1px solid var(--line); }
+    .editor { min-height: 420px; }
+    .studio-bar { flex-wrap: wrap; }
+    .notes { left: 16px; width: auto; }
+    .topbar .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 原型外壳（不是产品界面） -->
+<div class="proto-bar">
+  <b>原型</b><span>故事板并进片场 · 去掉顶部「故事板」标签</span>
+  <span class="grow"></span>
+  <span>演示状态</span>
+  <div class="pill seg" id="scenario">
+    <button data-s="none">还没有分镜</button>
+    <button data-s="mixed" class="on">分镜已好</button>
+  </div>
+  <button class="btn sm" id="reset">重置</button>
+  <button class="btn sm" id="notesBtn">设计说明</button>
+</div>
+
+<div class="app">
+  <!-- 应用顶栏：工序标签少了「故事板」 -->
+  <header class="topbar">
+    <div class="pill stage-tabs">
+      <button>总览</button><button>剧本</button><button>资产管理</button>
+      <button class="on">片场</button><button>成片</button>
+    </div>
+    <span class="grow"></span>
+    <div class="pill hide-sm">
+      <span class="item">真人都市电影</span><span class="sep"></span><span class="item">9:16</span><span class="sep"></span><span class="item">gpt-6-sol</span>
+    </div>
+    <div class="pill hide-sm"><span class="item"><span class="dot" style="background:var(--ok)"></span><span class="credits">9,998</span></span></div>
+  </header>
+
+  <!-- 片场顶部条 -->
+  <div class="studio-bar" id="studioBar"></div>
+
+  <div class="body" id="body"></div>
+
+  <div class="clipbar" id="clipbar"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<aside class="notes" id="notes">
+  <h4>① 一个片段 = 脚本 → 故事板 → 视频</h4>
+  <p>故事板不再是单独的工序，而是片场里每个片段的中间一步。选中片段后，中间预览顶部的「故事板 | 视频」切换两种画面，右边仍是这段的脚本（提示词）。</p>
+  <h4>② 默认看哪一面</h4>
+  <ul>
+    <li>这段还没有视频 → 默认「故事板」，先把宫格图定下来。</li>
+    <li>已经有视频 → 默认「视频」。</li>
+    <li>点「生成视频」后自动切到「视频」看进度。</li>
+  </ul>
+  <h4>③ 提醒，不拦截</h4>
+  <p>没有故事板、或原稿改过（过期）时，照样能生成视频；右侧参考素材条第一格是故事板芯片，标出「未生成 / 已过期」，可以点 × 本次不带。</p>
+  <h4>④ 改了脚本，故事板马上标过期</h4>
+  <p>在右侧改提示词（试试改【时间轴】），中间宫格图左上角出现「原稿已改 · 重新生成」，片段条上故事板那一格变成琥珀色。</p>
+  <h4>⑤ 片段条一眼看进度</h4>
+  <p>每格底部两段小条：左边故事板、右边视频。绿 = 好了，琥珀 = 过期，闪 = 生成中，红 = 失败。没视频时缩略图显示故事板。</p>
+  <h4>⑥ 整集批量</h4>
+  <p>顶部条「故事板 4/6」显示进度，「补齐故事板 · n」一次补完缺的和过期的；视频的批量生成保持原样。</p>
+  <h4>⑦ 没有分镜脚本</h4>
+  <p>片场空状态只有一个「生成分镜脚本」。分镜好了，故事板和视频都在这里接着做。重新生成分镜脚本会清空片段，旧故事板一起清掉（确认弹窗里写明）。</p>
+  <h4>不在本原型里</h4>
+  <ul><li>故事板的图片模型和提示词在「项目设置」里选（已实现）。</li><li>在画布里查看历史版本：预览下方的版本圆点 + 「在画布中打开」。</li></ul>
+</aside>
+
+<script>
+/* ---------------- 假数据 ---------------- */
+const SHOTS = [
+  ["全景，迅哥儿推门跑进厨房", "中景，闰土低头躲在灶台边", "近景，迅哥儿伸出手"],
+  ["远景，海边沙地月色", "中景，闰土举起钢叉", "特写，猹从脚下窜过", "全景，两人追着跑"],
+  ["中景，母亲在堂屋收拾", "近景，闰土拘谨站着", "特写，一声「老爷」", "反打，迅哥儿愣住", "全景，屋里安静下来"],
+  ["全景，船离开码头", "中景，宏儿趴在船舷"],
+  ["近景，迅哥儿望着岸边", "特写，水面月光", "中景，母亲坐下叹气", "远景，故乡渐远", "空镜，芦苇", "黑场"],
+  ["全景，沙地西瓜田", "近景，少年闰土的项圈", "特写，银项圈反光"],
+];
+const SECS = [7, 8, 10, 5, 12, 6];
+
+function initialState(scenario) {
+  const seg = (i, board, video) => ({
+    seq: i, seconds: SECS[i], shots: SHOTS[i].slice(),
+    prompt: makePrompt(SHOTS[i]),
+    board: { state: board, versions: board === "empty" ? 0 : (i === 0 ? 2 : 1), cur: 0 },
+    video: { state: video },
+    boardOff: false,
+  });
+  return {
+    scenario,
+    selected: 0,
+    view: null, // null = 跟着规则走
+    segments: scenario === "none" ? [] : [
+      seg(0, "ready", "none"),
+      seg(1, "ready", "done"),
+      seg(2, "stale", "done"),
+      seg(3, "empty", "none"),
+      seg(4, "failed", "none"),
+      seg(5, "ready", "none"),
+    ],
+    scripting: false,
+  };
+}
+function makePrompt(shots) {
+  let t = 0;
+  const lines = shots.map((s, i) => {
+    const a = t; t += 2 + (i % 2);
+    return `${a}-${t}秒：${s}。`;
+  });
+  return `【画幅风格】9:16 竖屏，真人电影质感，暖黄低饱和。\n【场景与光】@周家厨房，午后侧光。\n【参考与人物】@闰土 外貌与服装。\n【时间轴】\n${lines.join("\n")}`;
+}
+function shotsFromPrompt(prompt) {
+  const out = [];
+  let inT = false;
+  for (const line of prompt.split("\n")) {
+    if (line.trim().startsWith("【时间轴】")) { inT = true; continue; }
+    if (inT && line.trim().startsWith("【")) break;
+    const m = inT && line.match(/^\s*\d+(?:\.\d+)?\s*[-–~]\s*\d+(?:\.\d+)?\s*秒\s*[:：]\s*(.*)$/);
+    if (m) out.push(m[1].replace(/。$/, ""));
+  }
+  return out;
+}
+function layoutOf(n) {
+  if (n <= 4) return { cols: 2, rows: 2 };
+  if (n <= 6) return { cols: 3, rows: 2 };
+  return { cols: 3, rows: 3 };
+}
+
+let S = initialState("mixed");
+
+/* ---------------- 图标 ---------------- */
+const I = {
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+  film: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.5"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>',
+  spin: '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg>',
+  redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>',
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  xc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>',
+  spark: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2z"/></svg>',
+  open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>',
+  script: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+};
+
+/* ---------------- 画面（用渐变代替真图） ---------------- */
+function cellArt(seq, idx, ver) {
+  const h = (seq * 47 + idx * 23 + ver * 90) % 360;
+  return `background:
+    radial-gradient(70% 60% at ${30 + idx * 13 % 50}% ${60 - idx * 7 % 30}%, hsla(${h},40%,55%,.55), transparent 70%),
+    linear-gradient(${140 + idx * 20}deg, hsl(${h},18%,22%), hsl(${(h + 40) % 360},22%,12%))`;
+}
+function gridHTML(seg, { mini = false } = {}) {
+  const n = seg.shots.length || 4;
+  const { cols, rows } = layoutOf(n);
+  let cells = "";
+  for (let i = 0; i < cols * rows; i++) {
+    if (i < n) {
+      cells += `<div class="cell" style="${cellArt(seg.seq, i, seg.board.cur)}">${mini ? "" : `<span class="no">${i + 1}</span><span class="cap">${seg.shots[i] || ""}</span>`}</div>`;
+    } else cells += `<div class="cell blank"></div>`;
+  }
+  return `<div class="grid" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr);${mini ? "gap:1px" : ""}">${cells}</div>`;
+}
+
+/* ---------------- 规则 ---------------- */
+const cur = () => S.segments[S.selected];
+const hasBoard = (seg) => seg.board.versions > 0 && seg.board.state !== "running";
+const boardUsable = (seg) => seg.board.state === "ready" || seg.board.state === "stale";
+function viewOf(seg) {
+  if (S.view) return S.view;
+  return seg.video.state === "none" ? "board" : "video";
+}
+function needsBoard(seg) { return ["empty", "stale", "failed"].includes(seg.board.state); }
+
+/* ---------------- 渲染 ---------------- */
+function render() {
+  renderStudioBar();
+  renderBody();
+  renderClipbar();
+  document.querySelectorAll("#scenario button").forEach((b) => b.classList.toggle("on", b.dataset.s === S.scenario));
+}
+
+function renderStudioBar() {
+  const el = document.getElementById("studioBar");
+  if (S.scenario === "none") {
+    el.innerHTML = `<span class="title">第 3 集 · 回乡</span><span class="grow"></span>`;
+    return;
+  }
+  const total = S.segments.length;
+  const ready = S.segments.filter((s) => s.board.state === "ready").length;
+  const todo = S.segments.filter(needsBoard).length;
+  const running = S.segments.some((s) => s.board.state === "running");
+  el.innerHTML = `
+    <span class="title">第 3 集 · 回乡</span><span class="saved">已保存</span>
+    <span class="grow"></span>
+    <div class="pill progress-pill" title="可用的故事板 / 片段数">
+      <span class="item">${I.grid}故事板 <span class="num" style="opacity:1">${ready}/${total}</span><span class="meter"><i style="width:${(ready / total) * 100}%"></i></span></span>
+      <span class="sep"></span>
+      <button id="fillBoards" ${todo === 0 || running ? "disabled" : ""} title="${todo === 0 ? "每个片段都有可用的故事板" : "生成缺的、失败的和已过期的"}">
+        ${running ? I.spin + "生成中" : `${I.spark}补齐故事板${todo ? ` <span class="num">· ${todo}</span>` : ""}`}
+      </button>
+    </div>
+    <div class="pill"><span class="item">${cur().seconds}s</span><span class="sep"></span><span class="item">720P</span><span class="sep"></span><span class="item">9:16</span></div>
+    <button class="btn sm" id="regenScript" title="重新生成分镜脚本（会清空片段和故事板）">${I.script}重新生成分镜脚本</button>`;
+  el.querySelector("#fillBoards")?.addEventListener("click", fillBoards);
+  el.querySelector("#regenScript").addEventListener("click", () => {
+    if (confirm("重新生成第 3 集的分镜脚本？\n\n会清空这一集已有的片段和故事板（已生成的视频文件不会删除）。")) {
+      S = initialState("none"); render(); toast("已清空，重新生成分镜脚本…");
+    }
+  });
+}
+
+function renderBody() {
+  const body = document.getElementById("body");
+  if (S.scenario === "none") {
+    body.innerHTML = `
+      <div class="col lib-col">${libHTML()}</div>
+      <div class="col" style="grid-column: span 2"><div class="gate">
+        <span class="ico">${S.scripting ? I.spin : I.film}</span>
+        <h3>${S.scripting ? "分镜脚本生成中" : "第 3 集还没有分镜脚本"}</h3>
+        ${S.scripting ? "" : `<button class="btn primary" id="genScript">${I.script}生成分镜脚本 <span class="num">· 12</span></button>`}
+      </div></div>`;
+    body.querySelector("#genScript")?.addEventListener("click", () => {
+      S.scripting = true; render();
+      setTimeout(() => { const s = initialState("mixed"); s.segments.forEach((g) => { g.board = { state: "empty", versions: 0, cur: 0 }; g.video.state = "none"; }); S = s; render(); toast("分镜脚本好了：6 个片段，接着生成故事板"); }, 1600);
+    });
+    return;
+  }
+  const seg = cur();
+  const view = viewOf(seg);
+  body.innerHTML = `
+    <div class="col lib-col">${libHTML()}</div>
+    <div class="col"><div class="preview">
+      <div class="pill view-switch">
+        <button data-v="board" class="${view === "board" ? "on" : ""}">${I.grid}故事板 ${boardBadge(seg)}</button>
+        <button data-v="video" class="${view === "video" ? "on" : ""}">${I.film}视频 ${videoBadge(seg)}</button>
+      </div>
+      <div class="stage-frame">${view === "board" ? boardFrame(seg) : videoFrame(seg)}</div>
+      <div class="under">${view === "board" ? boardUnder(seg) : videoUnder(seg)}</div>
+    </div></div>
+    <div class="col">${editorHTML(seg)}</div>`;
+
+  body.querySelectorAll(".view-switch button").forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.v; render(); }));
+  body.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", () => ACT[b.dataset.act]?.(b)));
+  const ta = body.querySelector("textarea");
+  ta.addEventListener("input", () => {
+    seg.prompt = ta.value;
+    const shots = shotsFromPrompt(ta.value);
+    if (shots.length) seg.shots = shots;
+    if (seg.board.state === "ready") { seg.board.state = "stale"; renderBoardBits(); }
+  });
+}
+/** 打字时只刷新和故事板状态有关的部分，不重绘编辑区（免得光标跳） */
+function renderBoardBits() {
+  const seg = cur();
+  const view = viewOf(seg);
+  document.querySelector('.view-switch [data-v="board"]').innerHTML = `${I.grid}故事板 ${boardBadge(seg)}`;
+  if (view === "board") {
+    document.querySelector(".stage-frame").innerHTML = boardFrame(seg);
+    document.querySelector(".under").innerHTML = boardUnder(seg);
+    document.querySelectorAll(".preview [data-act]").forEach((b) => b.addEventListener("click", () => ACT[b.dataset.act]?.(b)));
+  }
+  document.querySelector(".refs").innerHTML = refsInner(seg);
+  document.querySelectorAll(".refs [data-act]").forEach((b) => b.addEventListener("click", () => ACT[b.dataset.act]?.(b)));
+  document.querySelector(".board-line").outerHTML = boardLine(seg);
+  renderStudioBar();
+  renderClipbar();
+}
+
+function boardBadge(seg) {
+  const m = { ready: ["var(--ok)", ""], stale: ["var(--primary)", "过期"], empty: ["var(--dim)", ""], failed: ["var(--danger)", "失败"], running: ["var(--primary)", ""] }[seg.board.state];
+  if (seg.board.state === "running") return I.spin;
+  return m[1] ? `<span class="badge" style="background:color-mix(in srgb, ${m[0]} 18%, transparent);color:${m[0]}">${m[1]}</span>` : `<span class="dot" style="background:${m[0]}"></span>`;
+}
+function videoBadge(seg) {
+  if (seg.video.state === "running") return I.spin;
+  return `<span class="dot" style="background:${seg.video.state === "done" ? "var(--ok)" : "var(--dim)"}"></span>`;
+}
+
+function boardFrame(seg) {
+  const st = seg.board.state;
+  if (st === "running") {
+    return `<div class="frame board">${seg.board.versions ? gridHTML(seg) + '<div style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div>' : ""}<div class="shimmer"></div>
+      <div class="running-card">${I.spin}<span>正在生成 ${layoutOf(seg.shots.length).cols * layoutOf(seg.shots.length).rows} 格故事板…</span></div></div>`;
+  }
+  if (st === "empty") {
+    return `<div class="frame board" style="background:transparent;box-shadow:none"><div class="frame-empty">
+      <span class="ico">${I.grid}</span><h3>还没有故事板</h3>
+      <div class="pill"><button data-act="genBoard">${I.spark}生成 <span class="num">· 4</span></button><span class="sep"></span><button data-act="upload">${I.up}上传</button></div>
+    </div></div>`;
+  }
+  if (st === "failed") {
+    return `<div class="frame board" style="background:transparent;box-shadow:none"><div class="frame-empty error">
+      <span class="ico" style="color:var(--danger)">${I.xc}</span><h3>生成失败</h3><div class="why">生成超时，积分已退回</div>
+      <div class="pill"><button data-act="genBoard">${I.redo}重新生成 <span class="num">· 4</span></button><span class="sep"></span><button data-act="upload">${I.up}上传</button></div>
+    </div></div>`;
+  }
+  return `<div class="frame board">${gridHTML(seg)}
+    ${st === "stale" ? `<div class="stale-chip">原稿已改<button data-act="genBoard">重新生成</button></div>` : ""}</div>`;
+}
+function boardUnder(seg) {
+  if (!hasBoard(seg) || seg.board.state === "failed") return "";
+  const vers = Array.from({ length: seg.board.versions }, (_, i) => `<button data-act="ver" data-i="${i}" class="${i === seg.board.cur ? "on" : ""}">${i + 1}</button>`).join("");
+  const { cols, rows } = layoutOf(seg.shots.length);
+  return `
+    <span class="num" style="font-size:12px">${seg.shots.length} 镜 · ${cols}×${rows} · 16:9</span>
+    ${seg.board.versions > 1 ? `<div class="pill ver">${vers}</div>` : ""}
+    <div class="pill">
+      <button data-act="genBoard">${I.redo}重新生成 <span class="num">· 4</span></button><span class="sep"></span>
+      <button data-act="upload">${I.up}上传替换</button><span class="sep"></span>
+      <button data-act="canvas">${I.open}在画布中打开</button>
+    </div>
+    ${seg.video.state === "none" ? `<button class="btn primary" data-act="genVideo">${I.film}用这张生成视频 <span class="num">· 30</span></button>` : ""}`;
+}
+
+function videoFrame(seg) {
+  if (seg.video.state === "running") {
+    return `<div class="frame video">${boardUsable(seg) && !seg.boardOff ? `<div style="position:absolute;inset:0;opacity:.25;filter:blur(18px)">${gridHTML(seg, { mini: true })}</div>` : ""}<div class="shimmer"></div>
+      <div class="running-card">${I.spin}<span>视频生成中…</span></div></div>`;
+  }
+  if (seg.video.state === "none") {
+    return `<div class="frame video" style="background:transparent;box-shadow:none"><div class="frame-empty">
+      <span class="ico">${I.film}</span><h3>还没有视频</h3>
+      <button class="btn primary" data-act="genVideo">${I.film}生成视频 <span class="num">· 30</span></button>
+    </div></div>`;
+  }
+  return `<div class="frame video"><div class="video-art" style="${cellArt(seg.seq, 0, 3)}">
+    <div class="play"><span>${I.play}</span></div><div class="video-meta">${seg.seconds}s · 第 1 版（采用）</div></div></div>`;
+}
+function videoUnder(seg) {
+  if (seg.video.state !== "done") return "";
+  return `<div class="pill"><button data-act="genVideo">${I.redo}再生成一版 <span class="num">· 30</span></button></div>`;
+}
+
+function libHTML() {
+  const items = [["闰土", "角色", 30], ["迅哥儿", "角色", 200], ["母亲", "角色", 330], ["周家厨房", "场景", 40], ["海边沙地", "场景", 210], ["银项圈", "道具", 50]];
+  return `<div class="col-head">资产库</div><div class="lib">${items.map(([n, t, h]) => `
+    <div class="lib-item"><div class="lib-thumb" style="background:linear-gradient(135deg,hsl(${h},25%,35%),hsl(${h + 40},25%,16%))"></div><div>${n}<small>${t}</small></div></div>`).join("")}</div>`;
+}
+
+function refsInner(seg) {
+  const bs = seg.board.state;
+  const usable = boardUsable(seg);
+  const state = seg.boardOff ? "本次不带" : !usable ? (bs === "running" ? "生成中" : "未生成") : bs === "stale" ? "已过期 · 仍会带上" : "图片1";
+  const thumb = usable ? gridHTML(seg, { mini: true }) : `<div style="position:absolute;inset:0;display:grid;place-items:center;color:var(--dim);border:1px dashed rgba(255,255,255,.15);border-radius:8px">${I.grid}</div>`;
+  return `
+    <div class="ref board ${seg.boardOff || !usable ? "off" : ""}" title="故事板固定是第一张参考图">
+      ${usable && !seg.boardOff ? '<span class="tag">1</span>' : ""}
+      ${usable ? `<button class="x" data-act="toggleOff" aria-label="${seg.boardOff ? "带上故事板" : "本次不带故事板"}" title="${seg.boardOff ? "带上故事板" : "本次不带故事板"}">${seg.boardOff ? I.plus : I.x}</button>` : ""}
+      <div class="thumb">${thumb}</div>
+      <div class="name">故事板</div><div class="state ${bs === "stale" && !seg.boardOff ? "warn" : ""}">${state}</div>
+    </div>
+    <div class="ref"><div class="thumb" style="background:linear-gradient(135deg,hsl(30,25%,35%),hsl(70,25%,16%))"></div><div class="name">闰土</div><div class="state">图片${usable && !seg.boardOff ? 2 : 1}</div></div>
+    <div class="ref"><div class="thumb" style="background:linear-gradient(135deg,hsl(40,25%,35%),hsl(80,25%,16%))"></div><div class="name">周家厨房</div><div class="state">图片${usable && !seg.boardOff ? 3 : 2}</div></div>`;
+}
+function boardLine(seg) {
+  if (!boardUsable(seg) || seg.boardOff) return `<div class="board-line" style="display:none"></div>`;
+  return `<div class="board-line">提交时最前面会加一行：<b>图片1是本段的分镜宫格图…</b></div>`;
+}
+function editorHTML(seg) {
+  return `<div class="col-head">参考素材</div>
+    <div class="editor">
+      <div class="refs">${refsInner(seg)}</div>
+      <div class="prompt-box">
+        ${boardLine(seg)}
+        <textarea aria-label="片段提示词" spellcheck="false">${seg.prompt}</textarea>
+        <div class="prompt-foot">
+          <span class="num" style="font-size:12px">片段 ${String(seg.seq + 1).padStart(2, "0")} · ${seg.seconds}s</span>
+          <span class="grow"></span>
+          <button class="btn primary" data-act="genVideo" ${seg.video.state === "running" ? "disabled" : ""}>${seg.video.state === "running" ? I.spin + "生成中" : `立即生成 <span class="num">· 30</span>`}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderClipbar() {
+  const el = document.getElementById("clipbar");
+  if (S.scenario === "none") { el.innerHTML = ""; el.style.display = "none"; return; }
+  el.style.display = "";
+  const total = S.segments.reduce((a, s) => a + s.seconds, 0);
+  el.innerHTML = `
+    <div class="clipbar-head"><span>片段</span><span class="num">${S.segments.length} 段 · ${total}s</span>
+      <span class="grow"></span>
+      <span class="steps" style="gap:6px"><i class="done"></i>故事板&nbsp;&nbsp;<i class="done"></i>视频</span>
+      <button class="btn sm">${I.film}批量生成视频</button>
+    </div>
+    <div class="clips">${S.segments.map((s, i) => clipHTML(s, i)).join("")}</div>`;
+  el.querySelectorAll(".clip").forEach((c) => c.addEventListener("click", () => { S.selected = Number(c.dataset.i); S.view = null; render(); }));
+}
+function clipHTML(s, i) {
+  const b = s.board.state;
+  const bCls = { ready: "done", stale: "stale", running: "run", failed: "err", empty: "" }[b];
+  const vCls = { done: "done", running: "run", none: "" }[s.video.state];
+  let art;
+  if (s.video.state === "done") art = `<div class="mini" style="${cellArt(s.seq, 0, 3)}"></div>`;
+  else if (boardUsable(s)) art = `<div class="mini dim">${gridHTML(s, { mini: true })}</div>`;
+  else art = `<div class="center-ico">${b === "running" || s.video.state === "running" ? I.spin : b === "failed" ? `<span style="color:var(--danger)">${I.xc}</span>` : I.film}</div>`;
+  return `<div class="clip ${i === S.selected ? "sel" : ""}" data-i="${i}" style="width:${Math.max(88, s.seconds * 15)}px" role="button" aria-label="片段 ${i + 1}">
+    ${art}
+    <div class="foot"><span>${String(i + 1).padStart(2, "0")}</span><span class="steps"><i class="${bCls}"></i><i class="${vCls}"></i></span><span class="grow"></span><span>${s.seconds}s</span></div>
+  </div>`;
+}
+
+/* ---------------- 动作 ---------------- */
+function genBoard(seg) {
+  seg.board.state = "running";
+  render();
+  setTimeout(() => {
+    seg.board.versions += 1; seg.board.cur = seg.board.versions - 1; seg.board.state = "ready";
+    if (seg === cur()) render(); else { renderStudioBar(); renderClipbar(); }
+  }, 1500 + Math.random() * 900);
+}
+const ACT = {
+  genBoard: () => genBoard(cur()),
+  upload: () => { const s = cur(); s.board.versions += 1; s.board.cur = s.board.versions - 1; s.board.state = "ready"; render(); toast("已上传为新的一版"); },
+  canvas: () => toast("切到画布并定位到这个故事板节点（看历史版本、细节）"),
+  ver: (b) => { cur().board.cur = Number(b.dataset.i); render(); },
+  toggleOff: () => { cur().boardOff = !cur().boardOff; render(); },
+  genVideo: () => {
+    const s = cur();
+    s.video.state = "running"; S.view = "video"; render();
+    toast(boardUsable(s) && !s.boardOff ? (s.board.state === "stale" ? "已提交 · 带着已过期的故事板" : "已提交 · 故事板作为图片1") : "已提交 · 没带故事板");
+    setTimeout(() => { s.video.state = "done"; if (s === cur()) render(); else renderClipbar(); }, 2200);
+  },
+};
+function fillBoards() {
+  const targets = S.segments.filter(needsBoard);
+  if (!targets.length) return;
+  if (!confirm(`生成 ${targets.length} 张故事板？\n片段 ${targets.map((s) => String(s.seq + 1).padStart(2, "0")).join("、")}，约 ${targets.length * 4} 积分起`)) return;
+  targets.forEach((s, i) => setTimeout(() => genBoard(s), i * 120));
+}
+
+/* ---------------- 外壳 ---------------- */
+let toastTimer;
+function toast(text) {
+  const t = document.getElementById("toast");
+  t.textContent = text; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+document.querySelectorAll("#scenario button").forEach((b) => b.addEventListener("click", () => { S = initialState(b.dataset.s); render(); }));
+document.getElementById("reset").addEventListener("click", () => { S = initialState(S.scenario); render(); });
+document.getElementById("notesBtn").addEventListener("click", () => document.getElementById("notes").classList.toggle("open"));
+
+render();
+</script>
+</body>
+</html>

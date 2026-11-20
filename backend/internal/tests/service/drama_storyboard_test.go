@@ -309,3 +309,53 @@ func TestDramaStoryboardAtomicReplacementRetry(t *testing.T) {
 		t.Fatalf("恢复未完成: segments=%+v ep=%+v credit=%+v", r.segments, r.episodes[0], r.credit)
 	}
 }
+
+// 分镜成功落库后，把本集每个片段的故事板节点在画布上建好（空节点，进画布就能看到）；
+// 画布没写成不影响分镜成功；分镜失败时不动画布。
+func TestDramaStoryboardSyncsBoardNodes(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		outputs    []string
+		syncErr    error
+		wantStatus string
+		wantSync   bool
+	}{
+		{"成功：同步本集故事板", []string{storyboardDraft, storyboardValid}, nil, "succeeded", true},
+		{"画布写失败：只记日志，分镜仍然成功", []string{storyboardDraft, storyboardValid}, errors.New("画布冲突"), "succeeded", true},
+		{"分镜失败：不动画布", []string{" ", ""}, nil, "failed", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newDramaMemory()
+			storyboardReady(r)
+			canvas := &dramaPipelineCanvas{mem: r, syncErr: tc.syncErr}
+			s, _ := dramaTestService(r, &dramaTextStreamer{outputs: tc.outputs}, canvas)
+			job, err := s.CreateJob(context.Background(), 7, 1, storyboardRequest(t, 0, []int{1}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = s.HandleDrama(context.Background(), 7, 1, uint64(job.ID)); err != nil {
+				t.Fatal(err)
+			}
+			if r.jobs[0].Status != tc.wantStatus {
+				t.Fatalf("job=%+v", r.jobs[0])
+			}
+			if !tc.wantSync {
+				if len(canvas.synced) != 0 {
+					t.Fatalf("不该同步：%+v", canvas.synced)
+				}
+				return
+			}
+			if len(canvas.synced) != 1 {
+				t.Fatalf("应同步一次：%+v", canvas.synced)
+			}
+			got := canvas.synced[0]
+			if got.episodeNo != 1 || got.canvasID != r.project.CanvasID || len(got.segments) != 1 {
+				t.Fatalf("同步参数不对：%+v", got)
+			}
+			seg := got.segments[0]
+			if seg.Seq != 0 || seg.Label != "故事板 · 第 1 集 · 01" || seg.ID == "" || seg.NewID == "" || seg.SourceHash == "" || seg.Layout != "2x2" || seg.ShotCount != 0 {
+				t.Fatalf("片段信息不对：%+v", seg)
+			}
+		})
+	}
+}

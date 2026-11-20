@@ -7,6 +7,7 @@ import {
   Library,
   Music2,
   Unlink,
+  UserRound,
 } from "lucide-react";
 
 import type { AssetDto } from "@/api/asset/type";
@@ -258,6 +259,8 @@ export function LibraryAssetCard({
   onPreview,
   onMove,
   onRemove,
+  onEnroll,
+  humanName,
   select,
   natural,
 }: {
@@ -266,6 +269,10 @@ export function LibraryAssetCard({
   onPreview?: () => void;
   onMove?: () => void;
   onRemove?: () => void;
+  /** 加入真人库（只有图片、且还不在真人库里时才传） */
+  onEnroll?: () => void;
+  /** 图片已在真人库里时所属真人的名字，显示成角标 */
+  humanName?: string | null;
   select?: CardSelect;
 }) {
   const { asset } = item;
@@ -298,11 +305,23 @@ export function LibraryAssetCard({
           {duration}
         </span>
       )}
+      {humanName && !select && (
+        <span className={cn(CHIP, "pointer-events-none absolute top-2 left-2 max-w-[70%]")}>
+          <UserRound className="size-3 shrink-0" />
+          <span className="truncate">真人 · {humanName}</span>
+        </span>
+      )}
       <span className="from-cover-scrim text-cover-foreground pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t to-transparent px-2.5 pt-7 pb-2 text-xs">
         <span className="block truncate font-medium">{name}</span>
       </span>
       {!select && onMove && onRemove && (
         <CardMenu>
+          {onEnroll && (
+            <DropdownMenuItem onClick={onEnroll}>
+              <UserRound />
+              加入真人库
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={onMove}>
             <FolderInput />
             移动到…

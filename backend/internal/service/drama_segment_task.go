@@ -149,7 +149,11 @@ func (s *DramaSegmentService) OnTaskChanged(ctx context.Context, task *model.Gen
 	if task == nil || task.IsTest || task.CanvasProjectID == nil {
 		return nil
 	}
-	if !strings.HasPrefix(task.NodeID, "seg:") || task.Kind != model.KindVideo {
+	if !strings.HasPrefix(task.NodeID, "seg:") {
+		// 不是片段视频：可能是片场生成的故事板（短剧画布上的图片节点）
+		return s.onBoardTaskChanged(ctx, task)
+	}
+	if task.Kind != model.KindVideo {
 		return nil
 	}
 	sid, ok := idcodec.Decode(strings.TrimPrefix(task.NodeID, "seg:"))

@@ -21,11 +21,11 @@
  *                                                       同步 multimodal-generation/generation，响应直接带 output.choices[].message.content[].image
  *
  * 用户输入（宿主按模型能力 capabilities 校验后传入）：
- *   prompt、op（t2i / i2i）、images（文件引用，交给宿主换成签名 URL）、
+ *   prompt、op（t2i / i2i）、images（文件引用，由宿主按渠道设置转换）、
  *   count（或 n，默认 1）、aspect_ratio、resolution（1K / 2K / 4K）、size（宽*高，优先于前两者）、seed、watermark、prompt_extend、negative_prompt
  *
  * 与上游相比刻意没移植：OpenAI Responses / Images 网关协议、usageSchema 计费与重算、SSE 流式（wan2.6-image 图文混排 enable_interleave）、
- *   组图 enable_sequential、wanx2.1-imageedit 除指令编辑外的其它 function、遮罩图、Base64 直传。
+ *   组图 enable_sequential、wanx2.1-imageedit 除指令编辑外的其它 function、遮罩图。
  * 未核实：错误码（Arrearage / Throttling* / DataInspectionFailed 等）取自记忆里的百炼文档，没有逐条对照；
  *   连通检查用的 GET /compatible-mode/v1/models 是 OpenAI 兼容端点，没有在上游代码里出现；
  *   千问图像各模型的合法 size 列表没有逐个核对，按宽高比和像素上限推算（宽高取 8 的倍数）。
@@ -37,10 +37,20 @@ module.exports = {
     apiVersion: 1,
     key: "alibaba-image",
     name: "阿里云百炼 · 图片",
-    version: "1.1.0",
+    version: "1.1.1",
     vendor: "alibaba",
     description: "对接阿里云百炼 DashScope 图片：万相图片、千问图像、Z-Image",
     auth: { type: "bearer" },
+    channelSettings: {
+      as: {
+        type: "enum",
+        label: "素材传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
+      },
+    },
     endpoints: {
       // 图片多数是异步任务，千问图像系列是同步接口：同步的在提交响应里直接返回 immediate
       image: { mode: "async", method: "POST", path: "/api/v1/services/aigc/…" },
@@ -187,6 +197,7 @@ function imageClass(model) {
 }
 
 function buildImageRequest(ctx) {
+  var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
   var input = ctx.input || {};
   var model = ctx.model.upstreamModel;
   var key = modelKey(model);
@@ -234,7 +245,7 @@ function buildImageRequest(ctx) {
       throw new Error(model + " 需要 1 到 3 张参考图");
     }
     inp.prompt = prompt;
-    inp.images = urlRefs(images);
+    inp.images = fileRefs(images, referenceFormat);
     if (typeof input.negative_prompt === "string" && input.negative_prompt) {
       inp.negative_prompt = input.negative_prompt;
     }
@@ -244,7 +255,7 @@ function buildImageRequest(ctx) {
     }
     inp.function = "description_edit"; // 只支持指令编辑；其它 function 未移植
     inp.prompt = prompt;
-    inp.base_image_url = urlRef(images[0]);
+    inp.base_image_url = fileRef(images[0], referenceFormat);
   } else {
     if (cls === "image26" && images.length === 0) {
       throw new Error("wan2.6-image 是图像编辑模型，需要参考图；文生图请用 wan2.6-t2i");
@@ -254,7 +265,7 @@ function buildImageRequest(ctx) {
     }
     var content = [];
     for (var i = 0; i < images.length; i++) {
-      content.push({ image: urlRef(images[i]) });
+      content.push({ image: fileRef(images[i], referenceFormat) });
     }
     content.push({ text: prompt });
     inp.messages = [{ role: "user", content: content }];
@@ -434,14 +445,14 @@ function classifyMessage(message) {
   return "terminal";
 }
 
-function urlRef(ref) {
-  return { __fileRef: ref, as: "url" };
+function fileRef(ref, referenceFormat) {
+  return { __fileRef: ref, as: referenceFormat };
 }
 
-function urlRefs(list) {
+function fileRefs(list, referenceFormat) {
   var out = [];
   for (var i = 0; i < list.length; i++) {
-    out.push(urlRef(list[i]));
+    out.push(fileRef(list[i], referenceFormat));
   }
   return out;
 }

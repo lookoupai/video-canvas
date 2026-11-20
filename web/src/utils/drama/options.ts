@@ -13,6 +13,9 @@ export const RATIOS: { key: Exclude<DramaRatio, "">; w: number; h: number }[] = 
 /** 单集时长档位（秒） */
 export const EPISODE_SECOND_OPTIONS = [60, 90, 120, 180] as const;
 
+export const MIN_EPISODE_SECONDS = 30;
+export const MAX_EPISODE_SECONDS = 180;
+
 export const DEFAULT_EPISODE_SECONDS = 60;
 
 /** 自定义画风的 style_key */

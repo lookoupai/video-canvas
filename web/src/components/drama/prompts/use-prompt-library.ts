@@ -9,7 +9,7 @@ import {
   updateMyPrompt,
 } from "@/api/drama";
 import type { DramaSkill, MyPrompt, PromptStep, PromptTemplate } from "@/api/drama/type";
-import { PROMPT_STEPS } from "@/utils/drama/prompts";
+import { SKILL_STEPS } from "@/utils/drama/prompts";
 import type { PromptDraft } from "@/utils/drama/prompts";
 
 /** 提示词库：内置正文、我的提示词、可用技能，以及对「我的提示词」的增改删 */
@@ -41,6 +41,7 @@ const emptyByStep = <T>(): Record<PromptStep, T[]> => ({
   assets: [],
   asset_prompts: [],
   video: [],
+  board: [],
 });
 
 /**
@@ -60,7 +61,7 @@ export function usePromptLibrary(): PromptLibrary {
       const [tpl, mineAll, ...skillLists] = await Promise.allSettled([
         listPromptTemplates(),
         listMyPrompts(),
-        ...PROMPT_STEPS.map((item) => listDramaSkills(item.key)),
+        ...SKILL_STEPS.map((item) => listDramaSkills(item.key)),
       ]);
       if (!alive.current) return;
       if (tpl.status === "fulfilled") setTemplates(tpl.value);
@@ -71,7 +72,7 @@ export function usePromptLibrary(): PromptLibrary {
       }
       const bySkill = emptyByStep<DramaSkill>();
       skillLists.forEach((result, index) => {
-        if (result.status === "fulfilled") bySkill[PROMPT_STEPS[index].key] = result.value;
+        if (result.status === "fulfilled") bySkill[SKILL_STEPS[index].key] = result.value;
       });
       setSkills(bySkill);
       setReady(true);

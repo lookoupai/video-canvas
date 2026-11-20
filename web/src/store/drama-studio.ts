@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-/** 一部短剧在片段工作区里的个人偏好：选了哪个视频模型、分辨率等生成参数 */
+/** 一部短剧在片段工作区里的个人偏好：选了哪个视频模型、分辨率等生成参数，以及生视频时带不带故事板 */
 export type StudioPrefs = {
   /** 视频模型 key；空串 = 取第一个可用的 */
   videoModel: string;
@@ -8,9 +8,11 @@ export type StudioPrefs = {
   overrides: Record<string, unknown>;
   /** 按片段保存是否使用无声原镜参考，未设置时跟随模型支持情况。 */
   referenceVideos?: Record<string, boolean>;
+  /** 生视频时不带故事板 */
+  boardOff: boolean;
 };
 
-const EMPTY: StudioPrefs = { videoModel: "", overrides: {} };
+const EMPTY: StudioPrefs = { videoModel: "", overrides: {}, boardOff: false };
 const storageKey = (dramaId: string) => `drama-studio:${dramaId}`;
 
 /** 读本机存的偏好；读不到、解析失败都当没存过 */
@@ -38,6 +40,7 @@ export function readPrefs(dramaId: string): StudioPrefs {
             ),
           }
         : {}),
+      boardOff: parsed?.boardOff === true,
     };
   } catch {
     return EMPTY;

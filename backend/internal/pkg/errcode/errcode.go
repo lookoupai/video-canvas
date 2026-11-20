@@ -311,3 +311,19 @@ var (
 	ErrMarketingNoReverse    = New(68016, "没有可用的拆解，不能重写跟拍", http.StatusConflict)
 	ErrMarketingAdaptFailed  = New(68018, "转写提示词失败：两次输出都不合格，请稍后重试", http.StatusBadGateway)
 )
+
+// 真人库（方舟虚拟人像库备案）69xxx。66xxx 曾被旧版角色卡使用，已发布的号段不复用。
+var (
+	ErrVirtualHumanNotFound       = New(69001, "真人不存在", http.StatusNotFound)
+	ErrVirtualHumanImageNotFound  = New(69002, "图片不存在", http.StatusNotFound)
+	ErrVirtualHumanInvalid        = New(69003, "参数不合法", http.StatusBadRequest) // 具体原因写进 Msg
+	ErrVirtualHumanImageDup       = New(69004, "这张图片已在真人库里", http.StatusConflict)
+	ErrVirtualHumanImageLimit     = New(69005, "每个真人最多 5 张图片", http.StatusConflict)
+	ErrVirtualHumanInUse          = New(69006, "图片正被角色卡使用，先在角色卡里换掉或删掉", http.StatusConflict)
+	ErrFilingNotConfigured        = New(69007, "管理员尚未配置虚拟人像库，暂时不能加入真人库", http.StatusConflict)
+	ErrFilingUpstream             = New(69008, "方舟接口调用失败，请稍后重试", http.StatusBadGateway)
+	ErrVirtualHumanLastImage      = New(69009, "这是唯一的图片，请改用移除真人", http.StatusConflict)
+	ErrVirtualHumanImageNotPublic = New(69010, "素材地址不是公网地址，方舟拉取不到，请联系管理员配置对象存储或本地存储的公网地址", http.StatusConflict)
+	ErrVirtualHumanRetryInvalid   = New(69011, "只有备案失败的图片可以重新提交", http.StatusConflict)
+	ErrVirtualHumanLimit          = New(69012, "真人数量已达上限", http.StatusConflict)
+)

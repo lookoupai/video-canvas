@@ -6,14 +6,17 @@ import type { AssetDto } from "@/api/asset/type";
 import type { AssetKind, LibraryItemDto } from "@/api/asset-library/type";
 import { EmptyMark } from "@/components/home/empty-mark";
 import { Button } from "@/components/ui/button";
+import { FilingStatus } from "@/components/virtual-human/filing-status";
 import type { AssetFoldersState } from "@/hooks/use-asset-folders";
 import { useAssetLibrary } from "@/hooks/use-asset-library";
 import { useGeneratedAssets } from "@/hooks/use-generated-assets";
+import { useVirtualHumans } from "@/hooks/use-virtual-humans";
 import { hasActiveFilter, type GeneratedFilter } from "@/utils/assets/generated-filter";
 import type { PagedList } from "@/utils/assets/paged-list";
 import { canToggle } from "@/utils/assets/picker-selection";
 import type { PickerView } from "@/utils/assets/picker-state";
 import type { UploadTask } from "@/utils/assets/upload-queue";
+import { humanPickGroups } from "@/utils/virtual-human/virtual-human";
 
 import { HistoryAssetCard, LibraryAssetCard, type CardSelect } from "./asset-card";
 import { AssetGrid, LoadMoreFooter } from "./asset-grid";
@@ -320,5 +323,83 @@ export function LibraryPane({
         </>
       )}
     </>
+  );
+}
+
+/**
+ * 弹框里「真人库」来源的内容：按真人分组列出图片，备案可用的才能勾选，备案中、失败的置灰并标原因。
+ * 选中的就是个人资产库里的那张素材，生成时后端会把备案可用的图换成 asset:// 引用。
+ * @param q 搜索词（已防抖），按真人名称匹配
+ * @param selected 当前选择
+ * @param rules 选择规则（上限、调用方给的不可选原因）
+ * @param onToggle 勾选或取消一个素材
+ */
+export function HumansPane({
+  q,
+  selected,
+  rules,
+  onToggle,
+}: {
+  q: string;
+  selected: AssetDto[];
+  rules: PickRules;
+  onToggle: (asset: AssetDto) => void;
+}) {
+  const { humans, loading, error, reload } = useVirtualHumans(true);
+  if (loading) return <PaneLoading />;
+  if (error) {
+    return (
+      <EmptyMark
+        className={EMPTY_CLASS}
+        title="加载失败"
+        hint={
+          <Button variant="outline" size="sm" onClick={reload}>
+            重试
+          </Button>
+        }
+      />
+    );
+  }
+  const groups = humanPickGroups(humans ?? [], q);
+  if (groups.length === 0) {
+    return (
+      <EmptyMark
+        className={EMPTY_CLASS}
+        title={q.trim() ? `没有找到“${q.trim()}”` : "真人库是空的"}
+      />
+    );
+  }
+  return (
+    <div className="flex flex-col gap-5">
+      {groups.map(({ human, items }) => (
+        <section key={human.id} aria-label={human.name} className="flex flex-col gap-2">
+          <h3 className="flex items-center gap-2 text-sm font-medium">
+            <span className="truncate">{human.name}</span>
+            <FilingStatus status={human.status} />
+          </h3>
+          <AssetGrid>
+            {items.map((item) => {
+              // 备案还没可用的图优先标备案状态，其次才是调用方的原因（已是主图、已添加）
+              const itemRules: PickRules = {
+                ...rules,
+                reasonOf: (asset) => item.reason ?? rules.reasonOf?.(asset) ?? null,
+              };
+              return (
+                <LibraryAssetCard
+                  key={item.imageId}
+                  item={{
+                    id: item.imageId,
+                    asset: item.asset,
+                    folderId: null,
+                    createdAt: human.createdAt,
+                  }}
+                  select={selectOf(selected, item.asset, onToggle, itemRules)}
+                />
+              );
+            })}
+          </AssetGrid>
+        </section>
+      ))}
+    </div>
   );
 }

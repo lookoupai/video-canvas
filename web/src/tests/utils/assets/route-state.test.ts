@@ -13,6 +13,14 @@ describe("parseAssetsParams：地址栏参数", () => {
     expect(parseAssetsParams(new URLSearchParams("tab=docs")).tab).toBe("history");
   });
 
+  test("认得真人库范围", () => {
+    expect(parseAssetsParams(new URLSearchParams("tab=humans"))).toEqual({
+      tab: "humans",
+      folder: null,
+    });
+    expect(parseAssetsParams(new URLSearchParams("tab=humans&folder=1f")).folder).toBeNull();
+  });
+
   test("folder 只在个人资产库里生效", () => {
     expect(parseAssetsParams(new URLSearchParams("tab=library&folder=1f")).folder).toBe("1f");
     expect(parseAssetsParams(new URLSearchParams("tab=history&folder=1f")).folder).toBeNull();
@@ -40,6 +48,10 @@ describe("buildAssetsSearch：写回地址栏", () => {
   test("个人资产库带 tab，文件夹带 folder", () => {
     expect(buildAssetsSearch({ tab: "library", folder: null })).toBe("tab=library");
     expect(buildAssetsSearch({ tab: "library", folder: "1f" })).toBe("tab=library&folder=1f");
+  });
+
+  test("真人库只带 tab", () => {
+    expect(buildAssetsSearch({ tab: "humans", folder: "1f" })).toBe("tab=humans");
   });
 
   test("非资产库范围丢掉 folder，解析再构建能还原", () => {

@@ -22,6 +22,7 @@
  *   PUT    /admin/ai/channels/:key                     更新渠道（字段都可选）
  *   PUT    /admin/ai/channels/:key/secret              设置 API Key，body = {value}，只写
  *   PUT    /admin/ai/channels/:key/secret-key          设置 / 清除 Secret Key（空串清除），body = {value}，只写
+ *   PUT    /admin/ai/channels/:key/filing-secret       设置虚拟人像库的 AK/SK，body = {access_key, secret_key}，只写
  *   PUT    /admin/ai/channels/sort                     渠道顺序，body = {keys: 全部渠道的新顺序}
  *   POST   /admin/ai/channels/:key/pull-models         向上游拉取模型清单（不落库）
  *   POST   /admin/ai/channels/:key/models/import       导入所选模型为“待配置”，body = {ids}
@@ -62,6 +63,7 @@ export const adminAiEndpoints = {
   channel,
   channelSecret: (key: string) => `${channel(key)}/secret`,
   channelSecretKey: (key: string) => `${channel(key)}/secret-key`,
+  channelFilingSecret: (key: string) => `${channel(key)}/filing-secret`,
   channelSort: () => `${P}/channels/sort`,
   channelPullModels: (key: string) => `${channel(key)}/pull-models`,
   channelImportModels: (key: string) => `${channel(key)}/models/import`,

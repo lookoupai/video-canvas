@@ -138,6 +138,24 @@ func TestStoryboardBuiltinBodyIsSeedance(t *testing.T) {
 	}
 }
 
+// 内置视频提示词每段末尾固定一栏【限制】：无字幕、无背景音乐、无文字水印（官方指南：模型默认可能自己加字幕和配乐，要明说）。
+func TestStoryboardBuiltinBodyHasLimits(t *testing.T) {
+	body := drama.PromptBody("storyboard")
+	for _, word := range []string{"【限制】", "无字幕", "无背景音乐", "水印"} {
+		if !strings.Contains(body, word) {
+			t.Fatalf("内置正文缺少 %s", word)
+		}
+	}
+	// 限制栏在时间轴后面，是每段的最后一栏
+	if strings.Index(body, "【限制】") < strings.Index(body, "【时间轴】") {
+		t.Fatal("【限制】应排在【时间轴】之后")
+	}
+	// 不再说「需要排除的内容一律不写不要出现」，限制栏是明确的例外
+	if strings.Contains(body, "不写“不要出现”") && !strings.Contains(body, "除【限制】") {
+		t.Fatal("限制栏要在“不写不要出现”的规则里写明例外")
+	}
+}
+
 func TestStoryboardTimelineOverrun(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

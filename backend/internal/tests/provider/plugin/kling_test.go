@@ -133,7 +133,7 @@ func klingVerifyJWT(t *testing.T, auth string) map[string]any {
 
 func TestKlingPrecheckAndMeta(t *testing.T) {
 	env := newKlingEnv(t, klingChannelKey)
-	if env.meta.Key != "kling" || env.meta.Version != "1.1.0" || env.meta.Auth.Type != pluginmeta.AuthCustom {
+	if env.meta.Key != "kling" || env.meta.Version != "1.1.1" || env.meta.Auth.Type != pluginmeta.AuthCustom {
 		t.Fatalf("meta 不符合预期：%+v", env.meta)
 	}
 	if len(env.meta.Endpoints) != 1 {

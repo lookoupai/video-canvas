@@ -236,6 +236,8 @@ func TestDramaHandler_PromptCRUD(t *testing.T) {
 		status, code       int
 	}{
 		{"POST", "/drama-prompts", `{"step":"plan","name":"我的","bodies":{"plan":"保留对白"}}`, 201, 0},
+		{"POST", "/drama-prompts", `{"step":"board","name":"水彩","bodies":{"board":"水彩风\n{{画面}}"}}`, 201, 0},
+		{"POST", "/drama-prompts", `{"step":"board","name":"缺画面","bodies":{"board":"水彩风"}}`, 400, 67017},
 		{"POST", "/drama-prompts", `{"step":"plan","name":"空","bodies":{"plan":""}}`, 400, 67017},
 		{"POST", "/drama-prompts", `{"step":"adapt","name":"旧环节","bodies":{"plan":"正文"}}`, 400, 10001},
 		{"POST", "/drama-prompts", `{"step":"bad","name":"坏","bodies":{}}`, 400, 10001},
@@ -255,11 +257,11 @@ func TestDramaHandler_PromptCRUD(t *testing.T) {
 	status, body := characterCall(t, r, "GET", "/drama-prompt-templates", "")
 	raw, _ := json.Marshal(body)
 	items, _ := responseData(t, body)["items"].([]any)
-	if status != 200 || len(items) != 5 {
-		t.Fatalf("应有五个环节：%s", raw)
+	if status != 200 || len(items) != 6 {
+		t.Fatalf("应有六个环节：%s", raw)
 	}
 	// 每个环节只有一页，分集规划、分集剧本分开
-	for i, want := range []string{"plan", "scripts", "assets", "asset_prompts", "video"} {
+	for i, want := range []string{"plan", "scripts", "assets", "asset_prompts", "video", "board"} {
 		item := items[i].(map[string]any)
 		if item["step"] != want || len(item["pages"].([]any)) != 1 {
 			t.Fatalf("第 %d 个环节应是 %s 且只有一页：%s", i, want, raw)

@@ -4,7 +4,7 @@
 
 | 位置 | 用途 |
 | --- | --- |
-| 仓库根目录 | 自有 fork 的工作树。功能开发分支为 `feature/reference-remake`，基于 `ee7fcc0`；`master` 跟踪 `origin/master`。克隆基线为 v0.6.18 / `f0b8ced3687b22de6af0358c682c5e768001ff4f`。下载时与 `upstream/master` 一致。[fork](https://github.com/lookoupai/video-canvas) · [上游](https://github.com/zaylora/video-canvas) |
+| 仓库根目录 | 自有 fork 的工作树。功能开发分支为 `feature/reference-remake`，本次通过 `release/upstream-v0.7.1` 合并上游 `v0.7.0`；`master` 跟踪 `origin/master`。克隆基线为 v0.6.18 / `f0b8ced3687b22de6af0358c682c5e768001ff4f`。下载时与 `upstream/master` 一致。[fork](https://github.com/lookoupai/video-canvas) · [上游](https://github.com/zaylora/video-canvas) |
 | `docs/仿拍二开/` | 随 fork 保存的方案和交接资料。[原始需求](初步需求.md) · [调研、许可与离线验证](短视频仿拍二开准备.md) |
 | `docs/仿拍二开/参考源码/` | 已选的拆片包读取器和生成段规划摘录，各自附许可。后续按需集成。[读取器](参考源码/capsule-cinema/scripts/remake_reference.py) · [分组函数](参考源码/daihuo-fanpai/group_shots.py) |
 
@@ -13,17 +13,17 @@
 - **已核对**：fork 和上游远端、工作树提交、Compose 开发配置解析。仓库里的护手霜 MP4 容器标注时长 10 秒，拆解 JSON 有 4 镜。[参考视频](../../backend/internal/marketing/samples/cream_ref.mp4) · [拆解样例](../../backend/internal/marketing/samples/cream_reverse.json)
 - **第一项实现**已完成。营销工作台选中跟拍脚本后打开「逐镜仿拍」，可查看该修订每个成片镜的时长、场景及全部已知来源，点击原镜即可回放。旧稿只有 `ref_shot` 时提示映射可能不完整。缺少快照且拆解已经修订时显示「待关联」。[接口契约](../design/营销工作室/接口契约.md)
 - **验收记录**覆盖护手霜样例的四个原片区间。Chrome 使用测试接口数据和仓库 MP4，实播分别停在 2.5、5、7.5、10 秒。刷新后将原镜 1、3 归入同一成片镜，两段可独立回放。PostgreSQL 集成测试验证了实际落库的映射，改变当前拆解后再次查询，仍能读到跟拍采用的旧区间。[映射测试](../../backend/internal/tests/marketing/remake_preview_test.go) · [持久化测试](../../backend/internal/tests/service/marketing_remake_preview_test.go) · [工作台测试](../../web/src/tests/pages/marketing/workbench-render.test.tsx)
-- **第二项实现**已完成。入口为「逐镜仿拍 → 单镜制作 → 建立制作计划」。每版脚本有独立计划，固定商品图、模型、原片依据，支持编辑镜头、参考裁片、单镜生成和选版、重排及全部或显式部分合成。新增迁移 `0043–0046`，合成经 River 后台队列执行。[接口契约](../design/营销工作室/接口契约.md#31-逐镜制作计划)
+- **第二项实现**已完成。入口为「逐镜仿拍 → 单镜制作 → 建立制作计划」。每版脚本有独立计划，固定商品图、模型、原片依据，支持编辑镜头、参考裁片、单镜生成和选版、重排及全部或显式部分合成。新增迁移 `0044–0047`，合成经 River 后台队列执行。[接口契约](../design/营销工作室/接口契约.md#31-逐镜制作计划)
 - **第二项本地验收**使用真实 PostgreSQL、HTTP 鉴权路由、素材存储和 FFmpeg，模型产物用本地确定性视频替身。第 3 镜 8 次并发重传只建一条任务、冻结一次 20 测试积分；另一次失败退款后保留已选旧版。缺镜会拒绝完整合成，显式部分合成为 2.5 秒。重排和换版的两次完整成片均为 10 秒，画面与音轨顺序一致，首次合成使用提交时的快照。Chrome 从正常工作台完成整个流程，首次生成响应丢失后重传复用原键，刷新恢复计划、选版和成片。[生成与重传测试](../../backend/internal/tests/service/marketing_remake_retry_test.go) · [合成快照测试](../../backend/internal/tests/service/marketing_remake_compose_worker_test.go) · [媒体测试](../../backend/internal/tests/pkg/videoframe/compose_ranges_test.go) · [工作台测试](../../web/src/tests/pages/marketing/remake-production.test.tsx)
 - **第二项待验收**为真实模型的耗时、实际积分和商品外观。当前没有可用渠道配置，以上测试积分与模型替身不能用于评估真实出片质量。其余代码开发已连续完成，第四项也已接通。[实施次序](营销与短剧仿拍设计.md#实施次序与验收)
 
 ## 剧集制作与验证
 
-第三项入口是短剧首页「从参考剧集创建」，已有项目可从工作台「参考剧集」进入。支持原片上传、拆片包导入、逐集异步本地分析、集序调整、场次与镜头查看、对白与说话人校订、跨集角色到项目新角色的映射，以及历史修订回看。新增迁移 `0047`。[导入格式、接口与分析器环境](参考剧集导入.md)
+第三项入口是短剧首页「从参考剧集创建」，已有项目可从工作台「参考剧集」进入。支持原片上传、拆片包导入、逐集异步本地分析、集序调整、场次与镜头查看、对白与说话人校订、跨集角色到项目新角色的映射，以及历史修订回看。新增迁移 `0048`。[导入格式、接口与分析器环境](参考剧集导入.md)
 
 自制两集各 5 秒样例使用蓝衣、红衣人物与双人对白。Chrome 经真实登录路由、PostgreSQL 和素材服务完成上传及校订，第二集错误包失败后单独重传正确包，第一集的修改保留。第二集的「蓝衣人」与第一集「阿澄」关联到同一全剧角色及新角色节点。刷新后映射与说话人可恢复，原镜回放停在 2.5 秒。再次执行真实 rea-video 本地分析后，旧校订稿可从历史修订读取。切镜分析不自动识别人名或台词，界面提示待校订。[解析测试](../../backend/internal/tests/reference/package_test.go) · [双集集成测试](../../backend/internal/tests/service/drama_reference_test.go) · [工作台测试](../../web/src/tests/pages/drama/reference.test.tsx)
 
-第四项入口是参考校订页「采用到片场」。按原镜重拍会建立真实分集和逐镜片段；原创改编固定参考依据和角色对应，再经现有「生成剧本 → 拆解资产 → 分镜」进入片场。已有跟拍集可以只更新勾选的原镜，保留其他镜头及已采用视频。片场新增原镜回放、无声视频参考开关和毫秒裁剪，生成重传恢复固定输入，连播与合成使用相同窗口。新增迁移 `0048–0049`。[实现与接口](短剧仿拍出片.md)
+第四项入口是参考校订页「采用到片场」。按原镜重拍会建立真实分集和逐镜片段；原创改编固定参考依据和角色对应，再经现有「生成剧本 → 拆解资产 → 分镜」进入片场。已有跟拍集可以只更新勾选的原镜，保留其他镜头及已采用视频。片场新增原镜回放、无声视频参考开关和毫秒裁剪，生成重传恢复固定输入，连播与合成使用相同窗口。新增迁移 `0049–0050`。[实现与接口](短剧仿拍出片.md)
 
 第四项本地验收使用两集各两个 2.5 秒镜头。28 项真实 HTTP 检查通过：重复采用不重复建集，单镜重传只创建一条任务、冻结一次积分，失败退款保留旧版，局部更新和重拍不改变另一集。真实 FFmpeg 合成两集均为 5.000 秒，抽帧颜色及音频频率与镜序一致；原镜裁片为 2.500 秒且无音轨。原创改编经实际写稿、拆解锁集和分镜服务走通，模型替身收到采用时的原稿与新角色快照。Chrome 从正常参考页完成选镜采用、原镜回放、故意丢失生成响应后的重传、选版、裁剪和合成；刷新恢复选版及裁剪，连播正确在目标终点切镜。模型输出均为本地可核对替身，不能代表真实生成质量。
 
@@ -43,7 +43,7 @@ GOMAXPROCS=2 GOFLAGS=-p=1 bash scripts/check.sh web backend
 (cd backend && GOMAXPROCS=2 go test -p 1 -race ./internal/tests/service ./internal/tests/repository ./internal/tests/provider/queue ./internal/tests/reference)
 ```
 
-> 请读 `docs/仿拍二开/README.md` 和 `docs/仿拍二开/短剧仿拍出片.md`，先核对工作树。四项代码与本地验收已完成，开发分支为 `feature/reference-remake`。后续重点是新镜像部署与真实渠道验收。API 总并发上限为 2，主代理加子代理最多 2 个，Go 检查单队列运行。
+> 请读 `docs/仿拍二开/README.md` 和 `docs/仿拍二开/短剧仿拍出片.md`，先核对工作树。四项代码与本地验收已完成，功能分支为 `feature/reference-remake`，上游合并与发布分支为 `release/upstream-v0.7.1`。后续重点是新镜像部署与真实渠道验收。API 总并发上限为 2，主代理加子代理最多 2 个，Go 检查单队列运行。
 
 余下外部验收只涉及真实渠道效果：营销沿用「四镜只重做第 3 镜」，短剧沿用「同一新角色两集出场、只重做一镜并合成指定集」，记录商品／人物外观、音色与动作衔接、时长、耗时和实际扣费。本 fork 新构建的生产与开发 Docker 镜像已内置 rea-video、Python、FFmpeg 和分析所需的固定模型，无需进入容器手工安装；直接运行 Go 服务时仍需准备本机分析环境，见[导入文档](参考剧集导入.md#本地分析器)。[原设计与验收标准](营销与短剧仿拍设计.md#实施次序与验收)
 
@@ -61,3 +61,9 @@ docker compose -f docker-compose.dev.yml config --quiet
 ```bash
 docker compose -f docker-compose.dev.yml exec -T backend go test ./internal/tests/marketing/...
 ```
+
+## 与上游 v0.7.0 合并
+
+保留上游故事板、参考音频、真人库及自定义单集时长。故事板图片、旁白音频和仿拍原镜视频可以同时带入生成；片场时长继续按仿拍的毫秒裁剪窗口累计。上游已发布的 `0043_virtual_humans.sql` 原样保留，本 fork 尚未发布的仿拍迁移顺延为 `0044–0050`。此前临时验收库已清理，正式部署从已发布版本正常升级。
+
+合并后使用 Bun 1.3 与 Go 1.27 重新检查：`bash scripts/check.sh web` 和 `bash scripts/check.sh backend` 全部通过；前端 5,145 项测试，后端包含真实 PostgreSQL / Redis、迁移结构一致性和新增功能回归。已修复测试中的动画帧时序与编辑器异步销毁问题。

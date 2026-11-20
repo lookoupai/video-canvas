@@ -15,6 +15,7 @@ import { FolderNameDialog } from "@/components/assets/folder-name-dialog";
 import { FolderPickerDialog } from "@/components/assets/folder-picker-dialog";
 import { NewMenu } from "@/components/assets/new-menu";
 import { UploadCard } from "@/components/assets/upload-card";
+import { EnrollDialog } from "@/components/virtual-human/enroll-dialog";
 import { EmptyMark } from "@/components/home/empty-mark";
 import {
   AlertDialog,
@@ -31,8 +32,11 @@ import { useAssetFolders } from "@/hooks/use-asset-folders";
 import { useAssetLibrary } from "@/hooks/use-asset-library";
 import { useAssetUploads } from "@/hooks/use-asset-uploads";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useVirtualHumans } from "@/hooks/use-virtual-humans";
 import { cn } from "@/lib/utils";
 import { moveInLibrary, removeFromLibrary, type LibraryApi } from "@/utils/assets/library-actions";
+import { humanOfAsset } from "@/utils/virtual-human/virtual-human";
+import type { AssetDto } from "@/api/asset/type";
 
 /** 改资产库用到的接口 */
 const LIBRARY_API: LibraryApi = { addToLibrary, moveLibraryItem, removeLibraryItem };
@@ -71,6 +75,11 @@ export function LibraryView({
   const [deleting, setDeleting] = useState<FolderDto | null>(null);
   const [moving, setMoving] = useState<LibraryItemDto | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [enrolling, setEnrolling] = useState<AssetDto | null>(null);
+
+  /** 真人库：哪些图片已经加入（显示角标、不再提供「加入真人库」），管理员没配置虚拟人像库时不提供入口 */
+  const humans = useVirtualHumans(true);
+  const ownerOf = useMemo(() => humanOfAsset(humans.humans ?? []), [humans.humans]);
 
   /** 地址栏里的文件夹已经不存在（别处删了、链接过期）：回到根目录并提示 */
   useEffect(() => {
@@ -254,6 +263,12 @@ export function LibraryView({
                 onPreview={() => setPreviewId(item.asset.id)}
                 onMove={() => setMoving(item)}
                 onRemove={() => void remove(item)}
+                humanName={ownerOf.get(item.asset.id)?.name ?? null}
+                onEnroll={
+                  item.asset.kind === "image" && humans.filingReady && !ownerOf.has(item.asset.id)
+                    ? () => setEnrolling(item.asset)
+                    : undefined
+                }
               />
             ))}
           </AssetMasonry>
@@ -324,6 +339,16 @@ export function LibraryView({
         initialFolderId={moving?.folderId ?? null}
         currentFolderId={moving?.folderId ?? null}
         onConfirm={(folderId) => (moving ? move(moving, folderId) : Promise.resolve())}
+      />
+
+      <EnrollDialog
+        asset={enrolling}
+        humans={humans.humans ?? []}
+        onClose={() => setEnrolling(null)}
+        onDone={(human) => {
+          humans.upsert(human);
+          toast.success(`已加入「${human.name}」，正在备案`);
+        }}
       />
 
       <AssetPreview

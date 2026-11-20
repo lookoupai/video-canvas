@@ -36,7 +36,7 @@ export type PauseCode = "user" | "credits" | "failed" | "context" | "custom_prom
 export type UnitKind = "episode" | "scene" | "chapter" | "chunk";
 
 /** 提示词的五个环节：分集规划 / 分集剧本 / 资产拆解 / 资产图提示词 / 视频提示词 */
-export type PromptStep = "plan" | "scripts" | "assets" | "asset_prompts" | "video";
+export type PromptStep = "plan" | "scripts" | "assets" | "asset_prompts" | "video" | "board";
 
 /** 任务状态 */
 export type DramaJobStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
@@ -78,6 +78,8 @@ export interface PromptSetting extends PromptChoice {
   label: string;
   /** true 表示快照来源（我的提示词 / 技能）已被删或停用：快照照常可用，界面标红提示 */
   missing?: boolean;
+  /** 只有故事板环节带正文（{ board: 模板 }）：前端按它拼宫格图提示词；其他环节不返回 */
+  bodies?: Record<string, string>;
 }
 
 /** 已建剧的各环节提示词设置 */
@@ -108,6 +110,8 @@ export interface BackendEpisodeSummary {
   segment_count?: number;
   segment_seconds?: number;
   done_segment_count?: number;
+  /** 有采用且未过期故事板的片段数；老后端没有按 0 */
+  done_board_count?: number;
   /** 三期字段（契约 §14）：成片与是否过期；后端还没带时按「没有成片」处理 */
   final?: BackendAssetDto | null;
   final_stale?: boolean;
@@ -149,11 +153,12 @@ export interface BackendJobView {
   batch_to?: number;
 }
 
-/** 三类资产各自的图片模型 key，空串 = 不指定 */
+/** 三类资产和故事板各自的图片模型 key，空串 = 不指定（故事板跟随场景图片模型） */
 export interface DramaImageModels {
   character: string;
   scene: string;
   prop: string;
+  board: string;
 }
 
 export interface BackendDramaView {
@@ -241,6 +246,8 @@ export interface EpisodeSummary {
   segmentSeconds: number;
   /** 有「采用」视频的片段数 */
   doneSegmentCount: number;
+  /** 有采用且未过期故事板的片段数 */
+  doneBoardCount: number;
   /** 合成好的成片；没有为 null */
   final: AssetDto | null;
   /** 成片之后有片段改了采用 / 顺序 / 增删：提示「成片已过期，可重新合成」 */
@@ -477,6 +484,9 @@ export interface BackendSegmentView {
   adaptations?: Partial<Record<AdaptFormat, BackendSegmentAdaptation>> | null;
 }
 
+/** 故事板宫格布局（列 x 行） */
+export type BoardLayout = "2x2" | "2x3" | "3x2" | "3x3";
+
 /** 需要转写的提示词格式（Seedance 是原稿本身，不存转写稿） */
 export type AdaptFormat = "h3" | "generic";
 
@@ -566,6 +576,25 @@ export interface SegmentGenerateBody {
 }
 
 export type SegmentGenerateResult = { task: TaskView };
+
+/** POST /drama-segments/:sid/board 请求体：片场生成故事板，后端写画布上的故事板节点并建图片任务 */
+export interface BoardGenerateBody {
+  model_id: string;
+  /** 按图片模型能力组装好的任务输入 */
+  input: Record<string, unknown>;
+  /** 节点上的提示词（@ 引用原样保留） */
+  prompt: string;
+  /** 节点参数（含 prompt、比例） */
+  params: Record<string, unknown>;
+  /** 新建节点的标题 */
+  label: string;
+  /** 出图时原稿的 SHA-256 */
+  source_hash: string;
+  layout: BoardLayout;
+  shot_count: number;
+  /** 要连进故事板节点的资产节点 id */
+  refs: string[];
+}
 
 /** WebSocket drama.segment 事件载荷（原样 snake_case） */
 export interface DramaSegmentEvent {
@@ -660,7 +689,7 @@ export interface SourceEstimateInput {
 
 /** 内置提示词的一页（现在每个环节一页） */
 export interface PromptPage {
-  /** 页 key：plan / scripts / breakdown / asset_prompts / storyboard */
+  /** 页 key：plan / scripts / breakdown / asset_prompts / storyboard / board */
   key: string;
   /** 页签名 */
   label: string;

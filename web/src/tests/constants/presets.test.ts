@@ -21,7 +21,7 @@ describe("预设目录", () => {
   test("三类预设的条数和 id 都不重复", () => {
     expect(STYLE_PRESETS).toHaveLength(45);
     expect(MOTION_PRESETS).toHaveLength(33);
-    expect(TEMPLATE_PRESETS).toHaveLength(9);
+    expect(TEMPLATE_PRESETS).toHaveLength(10);
     for (const list of [STYLE_PRESETS, MOTION_PRESETS, TEMPLATE_PRESETS]) {
       expect(new Set(list.map((item) => item.id)).size).toBe(list.length);
     }
@@ -69,5 +69,34 @@ describe("预设目录", () => {
     expect(findPreset("tpl", "multi_camera_nine_grid")?.name).toBe("多机位九宫格");
     expect(findPreset("style", "descending_orbit")).toBeUndefined();
     expect(findPreset("tpl", "nope")).toBeUndefined();
+  });
+
+  test("设定图分组提供角色四视图，并保留原有三视图模板", () => {
+    const sheets = TEMPLATE_PRESETS.filter((item) => item.group === "设定图");
+    expect(sheets.map((item) => item.name)).toEqual([
+      "角色脸部三视图",
+      "角色三视图",
+      "角色四视图",
+      "产品三视图",
+    ]);
+    expect(findPreset("tpl", "character_four_view_generation")).toEqual(
+      sheets.find((item) => item.name === "角色四视图"),
+    );
+  });
+
+  test("角色四视图提示词遵循内置角色资产图的构图与一致性要求", () => {
+    const prompt = findPreset("tpl", "character_four_view_generation")?.prompt ?? "";
+    expect(prompt).toContain("four-view");
+    expect(prompt).toMatch(/left.*40%.*chest-up.*front.*eye.level/i);
+    expect(prompt).toMatch(/right.*60%.*front.*strict.*90.degree side.*back/i);
+    expect(prompt).toMatch(/same scale.*same height.*feet aligned.*horizontal baseline/i);
+    expect(prompt).toMatch(/even.*spac.*head to toe/i);
+    expect(prompt).toMatch(
+      /facial identity.*body proportions.*hairstyle.*costume.*accessories.*style/i,
+    );
+    expect(prompt).toMatch(/back.*rear hairstyle.*back.*clothing/i);
+    expect(prompt).toMatch(/light.gray or.*white background/i);
+    expect(prompt).toMatch(/soft.*even.*lighting.*no harsh shadows/i);
+    expect(prompt).toMatch(/no.*text.*watermark/i);
   });
 });

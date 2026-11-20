@@ -68,7 +68,7 @@ func (h *DramaHandler) EstimateSource(c *gin.Context) {
 // PromptTemplates 只返回可替换正文，不返回固定协议。
 func (h *DramaHandler) PromptTemplates(c *gin.Context) {
 	items := []gin.H{}
-	labels := map[string]string{"plan": "分集规划", "scripts": "分集剧本", "breakdown": "资产拆解", "asset_prompts": "资产图提示词", "storyboard": "视频提示词"}
+	labels := map[string]string{"plan": "分集规划", "scripts": "分集剧本", "breakdown": "资产拆解", "asset_prompts": "资产图提示词", "storyboard": "视频提示词", "board": "故事板提示词"}
 	for _, step := range service.DramaPromptSteps {
 		pages := []gin.H{}
 		for _, key := range service.DramaPromptPages(step) {
@@ -82,7 +82,7 @@ func (h *DramaHandler) PromptTemplates(c *gin.Context) {
 // ListPrompts 返回本人提示词，包括可编辑正文。
 func (h *DramaHandler) ListPrompts(c *gin.Context) {
 	var req struct {
-		Step string `form:"step" binding:"omitempty,oneof=plan scripts assets asset_prompts video"`
+		Step string `form:"step" binding:"omitempty,oneof=plan scripts assets asset_prompts video board"`
 	}
 	if !BindQuery(c, &req) {
 		return

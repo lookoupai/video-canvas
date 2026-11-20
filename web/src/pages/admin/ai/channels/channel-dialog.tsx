@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import {
   createChannel,
+  setChannelFilingSecret,
   setChannelSecret,
   setChannelSecretKey,
   updateChannel,
@@ -28,11 +29,13 @@ import {
   buildChannelRequest,
   channelFormFromView,
   emptyChannelForm,
+  showFilingSwitch,
   type ChannelFormState,
 } from "@/utils/admin/channel-form";
 import { ADMIN_ERROR_CODE, errorMessage } from "@/utils/admin/errors";
 
 import { useAliveRef } from "../../use-admin";
+import { FilingSection } from "./filing-section";
 import { HeaderEditor } from "./header-editor";
 
 /** 新增 / 编辑渠道弹窗的业务参数 */
@@ -52,7 +55,7 @@ const isChannelInvalid = (error: unknown) =>
 /**
  * 新增 / 编辑渠道弹窗（仅 super_admin），走全局弹窗 store（openChannelDialog）。
  * 渠道只有连接信息：名称、key、Base URL、API Key / Secret Key（仅新建时填，之后用“设置 Key”）、自定义请求头、限流、启用；
- * 协议在模型里选。保存只做字段校验，不向上游发请求。
+ * 编辑时还能配置虚拟人像库（方舟真人素材备案）。协议在模型里选。保存只做字段校验，不向上游发请求。
  * 有未保存的修改时关闭先二次确认。
  */
 export function ChannelDialog({
@@ -126,17 +129,29 @@ function ChannelForm({
   const [form, setForm] = useState<ChannelFormState>(initial);
   const [apiKey, setApiKey] = useState("");
   const [secretKey, setSecretKey] = useState("");
+  /** 虚拟人像库的 AK/SK：只写，留空表示不改，两项要一起填 */
+  const [filingAk, setFilingAk] = useState("");
+  const [filingSk, setFilingSk] = useState("");
   const [attempted, setAttempted] = useState(false);
   const [busy, setBusy] = useState(false);
   /** 后端业务校验失败的原因（50013），展示在弹窗顶部 */
   const [topError, setTopError] = useState<string | null>(null);
 
   const dirty =
-    JSON.stringify(form) !== JSON.stringify(initial) || apiKey !== "" || secretKey !== "";
+    JSON.stringify(form) !== JSON.stringify(initial) ||
+    apiKey !== "" ||
+    secretKey !== "" ||
+    filingAk !== "" ||
+    filingSk !== "";
   useEffect(() => onDirty(dirty), [dirty, onDirty]);
 
   const built = useMemo(() => buildChannelRequest(form, channel), [form, channel]);
-  const errors = attempted && !built.ok ? built.errors : {};
+  /** AK/SK 只填了一项 */
+  const filingKeyHalf = (filingAk.trim() === "") !== (filingSk.trim() === "");
+  const errors: Record<string, string> = {
+    ...(attempted && !built.ok ? built.errors : {}),
+    ...(attempted && filingKeyHalf ? { filingKeys: "Access Key 和 Secret Key 要一起填写" } : {}),
+  };
 
   const patch = (next: Partial<ChannelFormState>) => {
     setForm((prev) => {
@@ -148,7 +163,7 @@ function ChannelForm({
     if (busy) return;
     setAttempted(true);
     setTopError(null);
-    if (!built.ok) return;
+    if (!built.ok || filingKeyHalf) return;
     setBusy(true);
     try {
       if (!channel) {
@@ -186,8 +201,14 @@ function ChannelForm({
         onClose();
         return;
       }
-      if (built.changed) {
-        await updateChannel(channel.key, built.update);
+      const filingKeys = filingAk.trim() !== "" && filingSk.trim() !== "";
+      if (built.changed) await updateChannel(channel.key, built.update);
+      if (filingKeys) {
+        await setChannelFilingSecret(channel.key, filingAk.trim(), filingSk.trim());
+        setFilingAk("");
+        setFilingSk("");
+      }
+      if (built.changed || filingKeys) {
         toast.success("渠道已更新");
         onSaved(channel.key, false);
       }
@@ -333,6 +354,20 @@ function ChannelForm({
             </FormField>
           </div>
         </div>
+
+        {channel && showFilingSwitch(form.baseUrl, form.filingEnabled) && (
+          <FilingSection
+            form={form}
+            filing={channel.filing}
+            accessKey={filingAk}
+            secretKey={filingSk}
+            errors={errors}
+            disabled={busy}
+            onPatch={patch}
+            onAccessKey={setFilingAk}
+            onSecretKey={setFilingSk}
+          />
+        )}
 
         <div className="flex items-center gap-2 text-sm">
           <Switch

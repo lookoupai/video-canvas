@@ -35,10 +35,20 @@ module.exports = {
     apiVersion: 1,
     key: "kling",
     name: "可灵 Kling",
-    version: "1.1.0",
+    version: "1.1.1",
     vendor: "kling",
     description: "快手可灵视频生成：文生视频、图生视频（含首尾帧），异步轮询出片",
     auth: { type: "custom" },
+    channelSettings: {
+      as: {
+        type: "enum",
+        label: "素材传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
+      },
+    },
     endpoints: {
       video: { mode: "async", method: "POST", path: "/v1/videos/text2video" },
     },
@@ -46,6 +56,7 @@ module.exports = {
   },
 
   buildSubmitRequest: function (ctx) {
+    var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
     var input = ctx.input || {};
     var model = ctx.model.upstreamModel || "kling-v1";
     var images = isArray(input.images) ? input.images : [];
@@ -71,9 +82,9 @@ module.exports = {
         body.aspect_ratio = String(input.aspect_ratio);
       }
     } else {
-      body.image = { __fileRef: images[0], as: "url" };
+      body.image = { __fileRef: images[0], as: referenceFormat };
       if (images.length > 1) {
-        body.image_tail = { __fileRef: images[1], as: "url" };
+        body.image_tail = { __fileRef: images[1], as: referenceFormat };
       }
     }
 

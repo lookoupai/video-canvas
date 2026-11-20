@@ -35,6 +35,7 @@ type Handlers struct {
 	WS             *handler.WSHandler                  // 用户级 WebSocket 推送
 	Asset          *handler.AssetHandler               // 素材上传与查询
 	AssetLibrary   *handler.AssetLibraryHandler        // 资产库：文件夹、库归属、生成历史
+	VirtualHuman   *handler.VirtualHumanHandler        // 真人库：方舟虚拟人像库备案
 	Drama          *handler.DramaHandler               // 短剧项目、分集剧本、资产流水线
 	DramaSegment   *handler.DramaSegmentHandler        // 分集片段编辑、排序与视频/首帧生成
 	Files          gin.HandlerFunc                     // 素材稳定地址 /files/*：本地存储直出，对象存储签名后 302
@@ -194,6 +195,17 @@ func New(mode, jwtSecret string, h Handlers) *gin.Engine {
 		auth.PATCH("/asset-library/items/:id", h.AssetLibrary.MoveItem)
 		auth.DELETE("/asset-library/items/:id", h.AssetLibrary.RemoveItem)
 
+		// 真人库（方舟虚拟人像库备案）：真人与图片的 id 是十六进制串；新建真人、加图返回 201；图片被角色卡使用时移除返回 409
+		auth.GET("/virtual-humans", h.VirtualHuman.List) // ?refresh=1 先向方舟刷新审核中的图片
+		auth.POST("/virtual-humans", h.VirtualHuman.Create)
+		auth.PATCH("/virtual-humans/:id", h.VirtualHuman.Rename)
+		auth.DELETE("/virtual-humans/:id", h.VirtualHuman.Remove)
+		auth.GET("/virtual-humans/:id/references", h.VirtualHuman.References)
+		auth.POST("/virtual-humans/:id/images", h.VirtualHuman.AddImage)
+		auth.PUT("/virtual-humans/:id/cover", h.VirtualHuman.SetCover)
+		auth.POST("/virtual-human-images/:id/retry", h.VirtualHuman.RetryImage)
+		auth.DELETE("/virtual-human-images/:id", h.VirtualHuman.RemoveImage)
+
 		// 营销工作室：项目、轮次、环节运行、脚本的 id 都是十六进制串；别人的资源一律按「不存在」处理。
 		auth.GET("/marketing/options", h.Marketing.Options)
 		auth.POST("/marketing/quote", h.Marketing.Quote)
@@ -284,6 +296,8 @@ func New(mode, jwtSecret string, h Handlers) *gin.Engine {
 		segments.PATCH("/:sid", h.DramaSegment.Update)
 		segments.DELETE("/:sid", h.DramaSegment.Delete)
 		segments.POST("/:sid/generate", h.DramaSegment.Generate)
+		segments.POST("/:sid/board", h.DramaSegment.GenerateBoard)
+		segments.PUT("/:sid/board/output", h.DramaSegment.SelectBoardOutput)
 		segments.POST("/:sid/adapt", h.DramaSegment.Adapt)
 
 		// 管理员后台接口：读与模型相关的写 = admin 或 super_admin；插件与渠道的写 = 仅 super_admin。
@@ -324,6 +338,7 @@ func New(mode, jwtSecret string, h Handlers) *gin.Engine {
 		channels.PUT("/:key", superOnly, h.AdminChannel.Update)
 		channels.PUT("/:key/secret", superOnly, h.AdminChannel.SetSecret)
 		channels.PUT("/:key/secret-key", superOnly, h.AdminChannel.SetSecretKey)
+		channels.PUT("/:key/filing-secret", superOnly, h.AdminChannel.SetFilingSecret) // 虚拟人像库的 AK/SK
 		channels.POST("/:key/pull-models", h.AdminChannel.PullModels)
 		channels.POST("/:key/models/import", h.AdminChannel.ImportModels)
 		channels.PUT("/:key/models/sort", h.AdminChannel.SetModelOrder)

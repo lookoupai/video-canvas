@@ -5,6 +5,7 @@ import {
   characterImageUploaded,
   addExtra,
   applyMainImage,
+  applyHumanImages,
   applyPickedAssets,
   applyVoiceAudio,
   characterDisplayName,
@@ -506,5 +507,44 @@ describe("characterImageUploaded：主图是不是用户自己给的", () => {
 
   test("不是角色卡一律不是", () => {
     expect(characterImageUploaded({ ...node("up"), kind: "image" })).toBe(false);
+  });
+});
+
+describe("applyHumanImages：从真人库引入", () => {
+  const img = (id: string) => ({ id, url: `/a/${id}` });
+
+  test("第一张作主图，其余按顺序替换补充图，最多 4 张；音色等其余字段不动", () => {
+    const voice = {
+      mode: "audio" as const,
+      assetId: "90",
+      src: "/a/90",
+      origin: "upload" as const,
+    };
+    const base = data({
+      character: character({ extras: [{ assetId: "11", src: "/a/11" }], voice }),
+    });
+    const patch = applyHumanImages(base, [
+      img("1"),
+      img("2"),
+      img("3"),
+      img("4"),
+      img("5"),
+      img("6"),
+    ]);
+    expect(patch).toMatchObject({ assetId: "1", src: "/a/1", mediaType: "image" });
+    expect(patch.character?.extras.map((x) => x.assetId)).toEqual(["2", "3", "4", "5"]);
+    expect(patch.character?.voice).toEqual(voice);
+    expect(patch.character?.name).toBe("林晚");
+  });
+
+  test("只有一张图时清空补充图", () => {
+    const base = data({ character: character({ extras: [{ assetId: "11", src: "/a/11" }] }) });
+    const patch = applyHumanImages(base, [img("1")]);
+    expect(patch.assetId).toBe("1");
+    expect(patch.character?.extras).toEqual([]);
+  });
+
+  test("没有图时不改节点", () => {
+    expect(applyHumanImages(data(), [])).toEqual({});
   });
 });

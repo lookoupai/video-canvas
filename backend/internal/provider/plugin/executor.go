@@ -46,7 +46,10 @@ type Options struct {
 	Secrets provider.SecretResolver
 	Assets  provider.AssetStore
 	Saver   provider.AssetSaver
-	Now     func() time.Time
+	// FiledAssets 把真人库里备案可用的图片换成上游素材引用（方舟 asset://…），只对插件标了 filed 的文件引用生效；
+	// 为 nil 时一律用素材地址。
+	FiledAssets provider.FiledAssetResolver
+	Now         func() time.Time
 
 	HookTimeout         time.Duration
 	DefaultTimeout      time.Duration
@@ -963,7 +966,11 @@ func (e *Executor) describeRequest(b *builtRequest) any {
 // describeRef 把文件引用写回它在请求描述里的样子（{__fileRef: "input:images.0", as: "url"}）。
 // 引用的字段都是小写的，直接序列化会得到空对象，运营就看不出请求里带了哪几个素材。
 func describeRef(r *fileRef) map[string]any {
-	return map[string]any{"__fileRef": fileRefPrefix + r.field, "as": r.as}
+	out := map[string]any{"__fileRef": fileRefPrefix + r.field, "as": r.as}
+	if r.filed {
+		out["filed"] = true
+	}
+	return out
 }
 
 // describeTree 复制 JSON 请求体树，把里面的文件引用换成可读的描述。
@@ -1018,6 +1025,11 @@ func (o *operation) resolveRef(ctx context.Context, ref fileRef) (any, error) {
 	if !ok {
 		return nil, pluginFaultf("文件引用 input:%s 不是任务输入中的媒体字段", ref.field)
 	}
+	// 插件声明这里接受上游素材引用（filed）时，真人库里备案可用的图片直接换成 asset://：
+	// 方舟对含真人人脸的参考图只认已备案素材，传普通地址会被输入风控拦下。没备案的照常往下走。
+	if uri, ok := o.filedAssetURI(ctx, ref, id); ok {
+		return uri, nil
+	}
 	f, err := o.e.opts.Assets.Open(ctx, o.task.UserID, id)
 	if err != nil {
 		return nil, terminalErr(codeAssetUnavailable, "打开任务输入素材失败", redactError(err, o.red.str))
@@ -1042,6 +1054,15 @@ func (o *operation) resolveRef(ctx context.Context, ref fileRef) (any, error) {
 	default:
 		return nil, pluginFault("文件引用 as 不合法")
 	}
+}
+
+// filedAssetURI 查素材的上游素材引用：只有插件标了 filed、宿主配置了真人库、且素材在任务所走的渠道下备案可用时才返回 ok=true。
+// 只替换地址形态（url / dataUrl）：纯 base64 字段放 asset:// 没有意义。
+func (o *operation) filedAssetURI(ctx context.Context, ref fileRef, assetID uint64) (string, bool) {
+	if !ref.filed || ref.as == "base64" || o.e.opts.FiledAssets == nil {
+		return "", false
+	}
+	return o.e.opts.FiledAssets.FiledAssetURI(ctx, o.task.UserID, assetID, o.rt.Channel.Key)
 }
 
 func (o *operation) httpRequest(ctx context.Context, b *builtRequest) (*http.Request, func(), error) {

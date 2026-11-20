@@ -22,7 +22,7 @@
  * 用户输入（宿主按模型 capabilities 校验后传入）：
  *   prompt（必填）、duration（秒，也接受 seconds；以数字发送）、size（WIDTHxHEIGHT，没传则不发）；
  *   aspect_ratio -> metadata.ratio、resolution -> metadata.resolution、generate_audio -> metadata.generate_audio；
- *   images / videos / audios：参考素材数组，每项是文件引用，宿主替换成签名 URL 后放进 metadata.content。
+ *   images / videos / audios：参考素材数组，每项是文件引用，宿主按渠道设置转换 后放进 metadata.content。
  *   图片角色：op=omni 或多于 2 张都是 reference_image；2 张是 first_frame + last_frame；1 张是首帧（不写 role）；
  *   视频 -> reference_video，音频 -> reference_audio。没有可发的 metadata 字段时不发 metadata。
  *
@@ -38,10 +38,20 @@ module.exports = {
     apiVersion: 1,
     key: "new-api-video",
     name: "New API 视频",
-    version: "1.1.0",
+    version: "1.1.1",
     vendor: "new-api",
     description: "New API 网关的 OpenAI 视频协议：文生视频、图生视频、多图 / 视频 / 音频参考（异步，完成后下载 mp4）",
     auth: { type: "bearer" },
+    channelSettings: {
+      as: {
+        type: "enum",
+        label: "素材传输格式",
+        description: "选择图片、视频和音频引用的传输格式，默认使用存储 URL。",
+        options: ["url", "dataUrl", "base64"],
+        required: true,
+        default: "url",
+      },
+    },
     endpoints: {
       video: { mode: "async", method: "POST", path: "/v1/videos" },
     },
@@ -49,6 +59,7 @@ module.exports = {
   },
 
   buildSubmitRequest: function (ctx) {
+    var referenceFormat = (ctx.channel && ctx.channel.settings && ctx.channel.settings.as) || "url";
     var input = ctx.input || {};
     var body = { model: ctx.model.upstreamModel };
     if (input.prompt !== undefined && String(input.prompt) !== "") {
@@ -73,7 +84,7 @@ module.exports = {
     if (typeof input.generate_audio === "boolean") {
       metadata.generate_audio = input.generate_audio;
     }
-    var content = refContent(input);
+    var content = refContent(input, referenceFormat);
     if (content.length > 0) {
       metadata.content = content;
     }
@@ -152,12 +163,12 @@ module.exports = {
   },
 };
 
-// metadata.content：图片 / 视频 / 音频参考，素材用文件引用，宿主替换成签名 URL。
-function refContent(input) {
+// metadata.content：图片 / 视频 / 音频参考，素材用文件引用，宿主按渠道设置转换。
+function refContent(input, referenceFormat) {
   var content = [];
   var images = isArray(input.images) ? input.images : [];
   for (var i = 0; i < images.length; i++) {
-    var item = { type: "image_url", image_url: { url: { __fileRef: images[i], as: "url" } } };
+    var item = { type: "image_url", image_url: { url: { __fileRef: images[i], as: referenceFormat } } };
     var role = imageRole(input.op, images.length, i);
     if (role) {
       item.role = role;
@@ -168,7 +179,7 @@ function refContent(input) {
   for (var v = 0; v < videos.length; v++) {
     content.push({
       type: "video_url",
-      video_url: { url: { __fileRef: videos[v], as: "url" } },
+      video_url: { url: { __fileRef: videos[v], as: referenceFormat } },
       role: "reference_video",
     });
   }
@@ -176,7 +187,7 @@ function refContent(input) {
   for (var a = 0; a < audios.length; a++) {
     content.push({
       type: "audio_url",
-      audio_url: { url: { __fileRef: audios[a], as: "url" } },
+      audio_url: { url: { __fileRef: audios[a], as: referenceFormat } },
       role: "reference_audio",
     });
   }

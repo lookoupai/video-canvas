@@ -433,6 +433,7 @@ describe("api/drama 开拍设置：视图新字段映射", () => {
       assets: { source: "skill", skill: "x", label: "技能 · X", missing: true },
       asset_prompts: { source: "builtin", label: "内置" },
       video: { source: "builtin", label: "内置" },
+      board: { source: "builtin", label: "内置" },
     },
   } as unknown as BackendDramaView;
 
@@ -463,13 +464,18 @@ describe("api/drama 开拍设置：视图新字段映射", () => {
     const withModels = mapDrama({
       ...raw,
       video_model: "v1",
-      image_models: { character: "c1", scene: "s1" },
+      image_models: { character: "c1", scene: "s1", board: "b1" },
     } as unknown as BackendDramaView);
     expect(withModels.videoModel).toBe("v1");
-    expect(withModels.imageModels).toEqual({ character: "c1", scene: "s1", prop: "" });
+    expect(withModels.imageModels).toEqual({
+      character: "c1",
+      scene: "s1",
+      prop: "",
+      board: "b1",
+    });
     const old = mapDrama(raw);
     expect(old.videoModel).toBe("");
-    expect(old.imageModels).toEqual({ character: "", scene: "", prop: "" });
+    expect(old.imageModels).toEqual({ character: "", scene: "", prop: "", board: "" });
   });
 
   test("老后端没有新字段：phase 按 done，提示词全是内置，任务线按用户线", () => {

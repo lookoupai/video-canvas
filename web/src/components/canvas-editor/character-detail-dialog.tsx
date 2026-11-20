@@ -9,6 +9,7 @@ import {
   Plus,
   Upload,
   UserRound,
+  UsersRound,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -36,6 +37,7 @@ import { cn } from "@/lib/utils";
 import type { CanvasNode, CanvasNodeData } from "@/types";
 import type { PreviewItem } from "@/utils/canvas/preview-items";
 import {
+  applyHumanImages,
   applyPickedAssets,
   emptyCharacter,
   MAX_EXTRAS,
@@ -45,6 +47,8 @@ import {
 } from "@/utils/characters/node-character";
 import { setVoiceFromHistory } from "@/utils/characters/voice-history";
 import { episodesLabel } from "@/utils/drama/assets";
+
+import { HumanPickerDialog } from "@/components/virtual-human/human-picker-dialog";
 
 import { LibraryPickerForCharacter } from "./character-library-picker";
 import { VoiceHistoryList } from "./voice-history-list";
@@ -187,6 +191,12 @@ export function CharacterDetailDialog({
     if (warnings.length > 0) toast.warning([...new Set(warnings)].join("；"));
   };
   const media = useCharacterMedia((asset, purpose) => apply([asset], purpose, "upload"));
+  /** 从真人库引入：真人的可用图片替换主图和补充图，之后照常可以换、删 */
+  const [pickingHuman, setPickingHuman] = useState(false);
+  const applyHuman = (images: AssetDto[]) => {
+    const patch = applyHumanImages(data, images);
+    if (Object.keys(patch).length > 0) updateNodeData(id, patch);
+  };
 
   const episodes = data.drama?.episodes;
   const history = useVoiceHistory(
@@ -285,6 +295,11 @@ export function CharacterDetailDialog({
                       label: "素材库",
                       onClick: () => media.openLibrary("image", "main"),
                     },
+                    {
+                      icon: <UsersRound />,
+                      label: "真人库",
+                      onClick: () => setPickingHuman(true),
+                    },
                   ]}
                 />
               )}
@@ -298,6 +313,13 @@ export function CharacterDetailDialog({
                 </span>
                 <ChromeButton
                   className="ml-auto"
+                  aria-label="从真人库引入"
+                  title="从真人库引入（替换主图和补充图）"
+                  onClick={() => setPickingHuman(true)}
+                >
+                  <UsersRound />
+                </ChromeButton>
+                <ChromeButton
                   aria-label="从素材库选补充图"
                   title={
                     !data.src
@@ -549,6 +571,11 @@ export function CharacterDetailDialog({
           data={data}
           onClose={media.closeLibrary}
           onConfirm={(assets, purpose) => apply(assets, purpose, "library")}
+        />
+        <HumanPickerDialog
+          open={pickingHuman}
+          onOpenChange={setPickingHuman}
+          onConfirm={applyHuman}
         />
       </DialogContent>
     </Dialog>

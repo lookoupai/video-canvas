@@ -21,12 +21,15 @@ const seg = (patch: Partial<Segment> = {}): Segment => ({
   ...patch,
 });
 
-const studio = (patch: Partial<Studio>): Studio =>
-  ({
+/** 夹具的 promptView 默认「原稿」；有转写稿的用例自己传 promptView: "adapted"（真实状态是有转写稿默认看转写） */
+const studio = (patch: Partial<Studio>): Studio => {
+  const base = {
+    promptView: "source",
     assets: [],
     assetsStatus: "ready",
     no: 1,
     format: "h3",
+    setPromptView: () => {},
     adapting: new Set<string>(),
     adaptErrors: {},
     adaptStateOf: () => "none",
@@ -38,7 +41,9 @@ const studio = (patch: Partial<Studio>): Studio =>
     video: { models: [], status: "ready", model: { key: "h3" }, setModel: () => {} },
     actions: { patch: async () => seg(), generate: async () => {}, adapt: async () => true },
     ...patch,
-  }) as unknown as Studio;
+  } as unknown as Studio;
+  return base;
+};
 
 const render = (value: Studio, node: React.ReactNode) =>
   renderToStaticMarkup(<StudioContext.Provider value={value}>{node}</StudioContext.Provider>);
@@ -69,7 +74,10 @@ describe("片场：原稿 / 转写标签", () => {
         h3: { prompt: "integrated", sourceHash: "old", edited: false, updatedAt: "" },
       },
     });
-    const html = render(studio({ adaptStateOf: () => "stale" }), <PromptPane segment={segment} />);
+    const html = render(
+      studio({ adaptStateOf: () => "stale", promptView: "adapted" }),
+      <PromptPane segment={segment} />,
+    );
     expect(html).toContain("已过期");
     expect(html).toContain("原稿已修改");
     expect(html).toContain("重新转写");
@@ -80,11 +88,28 @@ describe("片场：原稿 / 转写标签", () => {
       adaptations: { h3: { prompt: "旧转写", sourceHash: "h", edited: false, updatedAt: "" } },
     });
     const html = render(
-      studio({ adaptStateOf: () => "fresh", adaptErrors: { "s1:h3": "转写结果不合格，请重试" } }),
+      studio({
+        adaptStateOf: () => "fresh",
+        promptView: "adapted",
+        adaptErrors: { "s1:h3": "转写结果不合格，请重试" },
+      }),
       <PromptPane segment={segment} />,
     );
     expect(html).toContain("转写结果不合格，请重试");
     expect(html).toContain(">重试<");
+  });
+});
+
+describe("片场：提示词框撑满剩余高度", () => {
+  test("框占右栏剩下的高度（flex-1），文字多了在框里滚，不按视口限高，也不让整个右栏滚", () => {
+    for (const format of ["seedance", "h3"] as const) {
+      const html = render(studio({ format }), <PromptPane segment={seg()} />);
+      const box =
+        html.match(/<div[^>]*class="([^"]*bg-panel[^"]*rounded-\[14px\][^"]*)"/)?.[1] ?? "";
+      expect(box).toContain("flex-1");
+      expect(box).toContain("min-h-48");
+      expect(html).not.toContain("max-h-[50vh]");
+    }
   });
 });
 
@@ -103,14 +128,34 @@ describe("片场：生成按钮的拦截原因", () => {
     expect(html).toContain("disabled");
   });
 
-  test("H3 模型还没转写：禁用并写明先转写", () => {
-    const html = render(studio({ selected: seg() }), <GenerateControls />);
+  test("选的是原稿：H3 模型还没转写也能生成（原稿直接生成，不要求先转写）", () => {
+    const html = render(studio({ selected: seg(), promptView: "source" }), <GenerateControls />);
+    expect(html).not.toContain("先把原稿转写为 H3");
+    expect(html).not.toMatch(/disabled=""[^>]*>[^<]*立即生成/);
+  });
+
+  test("选的是转写、还没有转写稿：禁用并写明先转写", () => {
+    const html = render(studio({ selected: seg(), promptView: "adapted" }), <GenerateControls />);
     expect(html).toContain("先把原稿转写为 H3");
   });
 
-  test("正在转写：禁用并写明正在转写", () => {
+  test("选的是转写、已有转写稿：能生成", () => {
     const html = render(
-      studio({ selected: seg(), adaptStateOf: () => "busy" }),
+      studio({
+        selected: seg({
+          adaptations: { h3: { prompt: "转写稿", sourceHash: "h", edited: false, updatedAt: "" } },
+        }),
+        promptView: "adapted",
+        adaptStateOf: () => "fresh",
+      }),
+      <GenerateControls />,
+    );
+    expect(html).not.toContain("先把原稿转写为 H3");
+  });
+
+  test("正在转写：禁用并写明正在转写（选转写时）", () => {
+    const html = render(
+      studio({ selected: seg(), promptView: "adapted", adaptStateOf: () => "busy" }),
       <GenerateControls />,
     );
     expect(html).toContain("正在转写");

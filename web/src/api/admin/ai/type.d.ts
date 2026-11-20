@@ -180,12 +180,34 @@ export interface ChannelView {
   secret_set: boolean;
   /** Secret Key（可选的第二凭证，AK/SK 签名类协议用）是否已设置（只写不读） */
   secret_key_set: boolean;
+  /** 虚拟人像库（方舟真人素材备案）配置；旧后端没有这个字段 */
+  filing?: ChannelFilingView;
   /** 最后修改人 */
   updated_by: number;
   /** 更新时间 */
   updated_at: string;
   /** 创建时间 */
   created_at: string;
+}
+
+/** 渠道的虚拟人像库配置：真人图片备案到哪个方舟素材组；全平台只能有一个渠道启用 */
+export interface ChannelFiling {
+  /** 是否启用 */
+  enabled: boolean;
+  /** 方舟素材组 ID，启用时必填 */
+  group_id: string;
+  /** 方舟项目名，空串按 default */
+  project_name: string;
+}
+
+/** 渠道虚拟人像库的视图：AK/SK 只写不读，只告诉有没有设置 */
+export interface ChannelFilingView extends ChannelFiling {
+  /** 由 base_url 推断的站点：cn-beijing（方舟国内站）/ ap-southeast-1（BytePlus） */
+  site: string;
+  /** Access Key 是否已设置 */
+  access_key_set: boolean;
+  /** Secret Key 是否已设置 */
+  secret_key_set: boolean;
 }
 
 /** POST /admin/ai/channels 的请求体（Key 与 Secret Key 另走 secret 接口） */
@@ -199,8 +221,11 @@ export interface ChannelCreateRequest {
   enabled?: boolean;
 }
 
-/** PUT /admin/ai/channels/:key 的请求体：字段都可选，不传表示不改；headers 传了就整体替换 */
-export type ChannelUpdateRequest = Partial<Omit<ChannelCreateRequest, "key">>;
+/** PUT /admin/ai/channels/:key 的请求体：字段都可选，不传表示不改；headers、filing 传了就整体替换 */
+export type ChannelUpdateRequest = Partial<Omit<ChannelCreateRequest, "key">> & {
+  /** 虚拟人像库配置 */
+  filing?: ChannelFiling;
+};
 
 /** 可以删除的对象 */
 export type DeleteTarget = "plugin" | "channel" | "model";

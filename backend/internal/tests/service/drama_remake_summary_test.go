@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"video-canvas/internal/drama"
 	"video-canvas/internal/model"
+	"video-canvas/internal/pkg/idcodec"
 	"video-canvas/internal/service/dramasegmentfake"
 )
 
@@ -37,9 +39,10 @@ func TestDramaRemakeSummaryUsesTargetDurations(t *testing.T) {
 					r.Rows[len(r.Rows)-1].Remake = raw
 				}
 			}
-			count, seconds, done, err := svc.Summary(t.Context(), 1, 10)
-			if err != nil || count != len(tc.durations) || seconds != tc.want || done != 0 {
-				t.Fatalf("片场时长摘要 = %d镜/%d秒/%d选版，错误 %v", count, seconds, done, err)
+			boards := map[string]string{idcodec.Encode(r.Rows[0].ID): drama.SourceHash(r.Rows[0].Prompt)}
+			stats, err := svc.Summary(t.Context(), 1, 10, boards)
+			if err != nil || stats.Count != len(tc.durations) || stats.Seconds != tc.want || stats.Done != 0 || stats.Boards != 1 {
+				t.Fatalf("仿拍时长与故事板摘要 = %+v，错误 %v", stats, err)
 			}
 		})
 	}

@@ -19,7 +19,15 @@ beforeAll(async () => {
   PromptEditorPane = (await import("@/components/drama/prompts/prompt-editor")).PromptEditorPane;
   PromptRows = (await import("@/components/drama/prompts/prompt-rows")).PromptRows;
 });
-afterAll(() => dom.restore());
+afterAll(async () => {
+  // Tiptap 销毁编辑器是异步的：等它跑完再还原全局，不然会在没有 document 时抛错
+  await dom.flush(50);
+  dom.restore();
+});
+
+/** 故事板的内置模板（占位符是整体的块，不是文字） */
+const BOARD_BUILTIN =
+  "生成 {{格数}} 格分镜图，{{列数}} 列 {{行数}} 行，比例 {{比例}}\n{{画面}}\n无字幕";
 
 const mineItem = (patch: Partial<MyPrompt> = {}): MyPrompt => ({
   id: "1f",
@@ -40,6 +48,7 @@ const makeLibrary = (items: MyPrompt[] = []) => {
       { step: "plan", pages: [{ key: "plan", label: "分集规划", body: "内置规划" }] },
       { step: "scripts", pages: [{ key: "scripts", label: "分集剧本", body: "内置剧本" }] },
       { step: "video", pages: [{ key: "storyboard", label: "视频提示词", body: "内置视频" }] },
+      { step: "board", pages: [{ key: "board", label: "故事板提示词", body: BOARD_BUILTIN }] },
     ],
     mine: {
       plan: items.filter((i) => i.step === "plan"),
@@ -47,6 +56,7 @@ const makeLibrary = (items: MyPrompt[] = []) => {
       assets: [],
       asset_prompts: [],
       video: items.filter((i) => i.step === "video"),
+      board: items.filter((i) => i.step === "board"),
     },
     skills: {
       plan: [],
@@ -54,6 +64,7 @@ const makeLibrary = (items: MyPrompt[] = []) => {
       assets: [{ name: "cross", title: "跨集连续性", description: "保持角色一致" }],
       asset_prompts: [],
       video: [],
+      board: [],
     },
     save: async (draft) => {
       saved.push(draft);
@@ -177,6 +188,71 @@ describe("提示词编辑器", () => {
   });
 });
 
+describe("故事板提示词编辑器", () => {
+  const chipNames = (c: HTMLElement) =>
+    [...c.querySelectorAll("[data-placeholder]")].map((el) => el.getAttribute("data-placeholder"));
+
+  test("新建：预填内置模板，占位符是整体的块，上面有插入按钮；不是文本框", async () => {
+    const { library, saved } = makeLibrary();
+    const m = await dom.mount(
+      <PromptEditorPane step="board" item={null} library={library} onClose={() => {}} />,
+    );
+    await dom.flush();
+    expect(m.container.querySelector("textarea")).toBeNull();
+    expect(chipNames(m.container)).toEqual(["格数", "列数", "行数", "比例", "画面"]);
+    expect(m.container.querySelectorAll("[data-slot=placeholder-toolbar] button")).toHaveLength(5);
+    expect(m.container.textContent).toContain("故事板提示词 · 新建");
+    // 原样保存：文本和内置一字不差
+    await dom.type(nameInput(m.container), "照抄");
+    await dom.click(byText(m.container, "保存"));
+    await dom.flush();
+    expect(saved[0]).toMatchObject({ step: "board", bodies: { board: BOARD_BUILTIN } });
+    await m.unmount();
+  });
+
+  test("有不认识的占位符：保存就地报错并点名，不调接口", async () => {
+    const item = mineItem({
+      id: "5",
+      step: "board",
+      name: "写错了",
+      bodies: { board: "{{画面}} {{颜色}}" },
+    });
+    const { library, saved } = makeLibrary([item]);
+    const m = await dom.mount(
+      <PromptEditorPane step="board" item={item} library={library} onClose={() => {}} />,
+    );
+    await dom.flush();
+    await dom.click(byText(m.container, "保存"));
+    expect(m.container.querySelector('[role="alert"]')?.textContent).toContain(
+      "不认识的占位符 {{颜色}}",
+    );
+    expect(saved).toHaveLength(0);
+    await m.unmount();
+  });
+
+  test("恢复内置：换回内置模板，占位符重新成块，错误随之消失后能保存", async () => {
+    const item = mineItem({
+      id: "5",
+      step: "board",
+      name: "写错了",
+      bodies: { board: "{{画面}} {{颜色}}" },
+    });
+    const { library, saved } = makeLibrary([item]);
+    const m = await dom.mount(
+      <PromptEditorPane step="board" item={item} library={library} onClose={() => {}} />,
+    );
+    await dom.flush();
+    expect(chipNames(m.container)).toEqual(["画面"]);
+    await dom.click(byText(m.container, "恢复内置"));
+    await dom.flush();
+    expect(chipNames(m.container)).toEqual(["格数", "列数", "行数", "比例", "画面"]);
+    await dom.click(byText(m.container, "保存"));
+    await dom.flush();
+    expect(saved[0]).toMatchObject({ id: "5", bodies: { board: BOARD_BUILTIN } });
+    await m.unmount();
+  });
+});
+
 describe("四行提示词下拉", () => {
   const mount = async (
     items: MyPrompt[],
@@ -210,12 +286,20 @@ describe("四行提示词下拉", () => {
       (b.textContent ?? "").includes(text),
     ) as HTMLButtonElement | undefined;
 
-  test("五行：分集规划 / 分集剧本 / 资产拆解 / 资产图提示词 / 视频提示词，默认都是「内置」", async () => {
+  test("六行：分集规划 / 分集剧本 / 资产拆解 / 资产图提示词 / 视频提示词 / 故事板提示词，默认都是「内置」", async () => {
     const { m } = await mount([]);
     const names = [...m.container.querySelectorAll('[data-slot="prompt-rows"] > div > span')].map(
       (el) => el.textContent,
     );
-    expect(names).toEqual(["分集规划", "分集剧本", "资产拆解", "资产图提示词", "视频提示词"]);
+    expect(names).toEqual([
+      "分集规划",
+      "分集剧本",
+      "资产拆解",
+      "资产图提示词",
+      "视频提示词",
+      "故事板提示词",
+    ]);
+    expect(rowChip(m.container, "故事板提示词").textContent).toBe("内置");
     expect(rowChip(m.container, "视频提示词").textContent).toBe("内置");
     await m.unmount();
   });

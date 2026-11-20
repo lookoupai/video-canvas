@@ -24,6 +24,13 @@ func (s *AIChannelService) Update(ctx context.Context, in ChannelUpdateInput) (*
 	if err != nil {
 		return nil, err
 	}
+	if in.Filing != nil {
+		msgs, err := s.applyFiling(ctx, &next, *in.Filing)
+		if err != nil {
+			return nil, err
+		}
+		problems = append(problems, msgs...)
+	}
 	if len(problems) > 0 {
 		return nil, invalidChannel(problems)
 	}
@@ -100,6 +107,9 @@ func changedFields(before, after *model.AIChannel) []string {
 	}
 	if !jsonEqual(before.RateLimitJSON, after.RateLimitJSON) {
 		changed = append(changed, "rate_limit")
+	}
+	if !jsonEqual(before.FilingJSON, after.FilingJSON) {
+		changed = append(changed, "filing")
 	}
 	return changed
 }

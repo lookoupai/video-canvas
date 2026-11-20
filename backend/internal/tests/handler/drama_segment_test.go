@@ -29,6 +29,8 @@ func segmentHTTP() (*gin.Engine, *dramasegmentfake.Repo) {
 	r.DELETE("/drama-segments/:sid", h.Delete)
 	r.POST("/drama-segments/:sid/generate", h.Generate)
 	r.POST("/drama-segments/:sid/adapt", h.Adapt)
+	r.POST("/drama-segments/:sid/board", h.GenerateBoard)
+	r.PUT("/drama-segments/:sid/board/output", h.SelectBoardOutput)
 	return r, repo
 }
 
@@ -53,6 +55,12 @@ func TestDramaSegmentHandler_Contracts(t *testing.T) {
 		{"PATCH", base, `{"revision":2,"chosen_task_id":"` + idcodec.Encode(255) + `"}`, 400, 67011},
 		{"PATCH", base, `{"prompt":"缺版本"}`, 400, 10001},
 		{"POST", base + "/generate", `{"input":{}}`, 400, 10001},
+		// 故事板：宫格只能是三种之一，原稿哈希、提示词必填
+		{"POST", base + "/board", `{"model_id":"img","input":{},"prompt":"p","source_hash":"h","layout":"4x4"}`, 400, 10001},
+		{"POST", base + "/board", `{"model_id":"img","input":{},"prompt":"p","layout":"2x2"}`, 400, 10001},
+		{"POST", "/drama-segments/invalid/board", `{}`, 400, 10001},
+		{"PUT", base + "/board/output", `{}`, 400, 10001},
+		{"PUT", "/drama-segments/invalid/board/output", `{"output_id":"1"}`, 400, 10001},
 		{"POST", projectSegments, `{"seconds":0}`, 400, 10001},
 		{"POST", "/dramas/" + idcodec.Encode(7) + "/episodes/0/segments", `{}`, 400, 10001},
 		{"PATCH", "/drama-segments/invalid", `{"revision":1}`, 400, 10001},

@@ -11,13 +11,14 @@ import {
 } from "@/utils/assets/route-state";
 
 import { HistoryView } from "./history-view";
+import { HumansView } from "./humans-view";
 import { LibraryView } from "./library-view";
 
-/** 两个范围从左到右的顺序，决定切换时内容滑入的方向 */
-const TAB_ORDER: readonly AssetsTab[] = ["history", "library"];
+/** 范围从左到右的顺序，决定切换时内容滑入的方向 */
+const TAB_ORDER: readonly AssetsTab[] = ["history", "library", "humans"];
 
 /**
- * 资产页（设计稿 docs/design/资产库）：大标题旁是「生成历史 / 个人资产库」两个范围。
+ * 资产页（设计稿 docs/design/资产库）：大标题旁是「生成历史 / 个人资产库 / 真人库」三个范围。
  * 范围和个人资产库里的文件夹都写在地址栏（/assets?tab=library&folder=1f），刷新、后退能还原。
  * 各范围自己管内容和下面那条半透明工具条（筛选、搜索、新建）；分段控件放在标题旁不随范围重新挂载，滑块动画是连续的。
  */
@@ -54,6 +55,7 @@ export default function AssetsPage() {
           options={[
             { value: "history", label: "生成历史" },
             { value: "library", label: "个人资产库" },
+            { value: "humans", label: "真人库" },
           ]}
         />
       </div>
@@ -69,6 +71,7 @@ export default function AssetsPage() {
           {route.tab === "library" && (
             <LibraryView folder={route.folder} onFolderChange={changeFolder} />
           )}
+          {route.tab === "humans" && <HumansView />}
         </motion.div>
       </MotionConfig>
     </div>

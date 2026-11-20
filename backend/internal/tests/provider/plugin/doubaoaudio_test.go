@@ -102,7 +102,7 @@ const doubaoaudioOK = `{"audio":"QUJD","duration":3.2,"original_duration":3.2,"u
 
 func TestDoubaoaudioPrecheckAndMeta(t *testing.T) {
 	env := newDoubaoaudioEnv(t)
-	if env.meta.Key != "doubao-audio" || env.meta.Version != "1.1.0" || env.meta.Auth.Type != pluginmeta.AuthHeader || env.meta.Auth.Name != "X-Api-Key" {
+	if env.meta.Key != "doubao-audio" || env.meta.Version != "1.1.1" || env.meta.Auth.Type != pluginmeta.AuthHeader || env.meta.Auth.Name != "X-Api-Key" {
 		t.Fatalf("meta 不符合预期（鉴权应是 X-Api-Key 头）：%+v", env.meta)
 	}
 	if ep, ok := env.meta.Endpoint("audio"); !ok || ep.Mode != pluginmeta.ModeSync || ep.Path != "/api/v3/tts/create" {

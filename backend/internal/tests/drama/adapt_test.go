@@ -47,6 +47,27 @@ func TestAdaptPrompt(t *testing.T) {
 	}
 }
 
+// 转写不能把原稿【限制】栏（无字幕、无背景音乐）丢掉。
+func TestAdaptPromptKeepsLimits(t *testing.T) {
+	for _, tc := range []struct {
+		format string
+		wants  []string
+	}{
+		{"h3", []string{"No subtitles", "No non-diegetic music."}},
+		{"generic", []string{"【限制】", "无字幕", "无背景音乐"}},
+	} {
+		prompt, err := drama.AdaptPrompt(tc.format, drama.AdaptInput{Source: adaptSource, Seconds: 9, Ratio: "9:16", Style: "真人都市电影"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range tc.wants {
+			if !strings.Contains(prompt, want) {
+				t.Fatalf("%s 转写提示词缺少 %q", tc.format, want)
+			}
+		}
+	}
+}
+
 func TestDecodeAdaptOutput(t *testing.T) {
 	out, err := drama.DecodeOutput("adapt", []byte(`{"prompt":"转写稿"}`))
 	if err != nil || out.(drama.AdaptOutput).Prompt != "转写稿" {

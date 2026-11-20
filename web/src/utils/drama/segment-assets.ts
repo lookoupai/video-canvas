@@ -1,14 +1,17 @@
 import type { CanvasGraphDto } from "@/api/canvas/type";
-import type { NodeCharacter, NodeKind, NodeMediaType } from "@/types";
+import type { CanvasNodeData, NodeCharacter, NodeKind, NodeMediaType } from "@/types";
 import { normalizeLegacyCharacter } from "@/utils/characters/node-character";
 
-/** 片段提示词里能 @ 的资产类型（短剧画布上拆解出来的三类） */
-export type DramaAssetType = "character" | "scene" | "prop";
+import { assetEpisodesOf } from "./assets";
+
+/** 片段提示词里能 @ 的资产类型（画布上拆解出来的三类，外加可当旁白音色的音频） */
+export type DramaAssetType = "character" | "scene" | "prop" | "audio";
 
 export const DRAMA_ASSET_TYPES: { key: DramaAssetType; label: string }[] = [
   { key: "character", label: "角色" },
   { key: "scene", label: "场景" },
   { key: "prop", label: "道具" },
+  { key: "audio", label: "音频" },
 ];
 
 /** 短剧画布上的一个资产节点（读自画布，不另存） */
@@ -40,7 +43,15 @@ export type RefAsset = {
   generating: boolean;
 };
 
-const DRAMA_TYPES = new Set<string>(["character", "scene", "prop"]);
+const DRAMA_TYPES = new Set<string>(["character", "scene", "prop", "audio"]);
+
+/** 节点对应的片场资产类型：拆解出来的三类看 drama.type，音频节点按节点种类；其余返回 null */
+export function dramaAssetTypeOf(
+  data: Pick<CanvasNodeData, "drama" | "kind">,
+): DramaAssetType | null {
+  const type = data.drama?.type ?? (data.kind === "audio" ? "audio" : undefined);
+  return type && DRAMA_TYPES.has(type) ? (type as DramaAssetType) : null;
+}
 
 /** 从画布图谱里取出短剧资产（有 drama.type 的非组节点）；画布没有就是空数组 */
 export function assetsFromGraph(nodes: CanvasGraphDto["nodes"] | null | undefined): RefAsset[] {
@@ -49,8 +60,8 @@ export function assetsFromGraph(nodes: CanvasGraphDto["nodes"] | null | undefine
     if (node.type === "group") continue;
     // 旧画布里引用全局角色卡的节点先规整成内嵌数据（保留名字，其余为空）
     const data = normalizeLegacyCharacter(node).data;
-    const type = data.drama?.type;
-    if (!type || !DRAMA_TYPES.has(type) || data.kind === "director") continue;
+    const type = dramaAssetTypeOf(data);
+    if (!type || data.kind === "director") continue;
     const name = data.drama?.name?.trim() || data.label;
     const look = data.drama?.look?.trim() ?? "";
     const src = data.src && !data.src.startsWith("blob:") ? data.src : null;
@@ -60,10 +71,8 @@ export function assetsFromGraph(nodes: CanvasGraphDto["nodes"] | null | undefine
       name,
       look,
       label: data.label?.trim() || (look ? `${name} · ${look}` : name),
-      episodes:
-        data.drama?.episodes === null
-          ? null
-          : [...new Set(data.drama?.episodes ?? [])].sort((a, b) => a - b),
+      // 没有 drama 元数据的音频节点算未分类，和资产页一致
+      episodes: assetEpisodesOf(data),
       kind: data.kind,
       src,
       mediaType: data.mediaType,
@@ -107,7 +116,12 @@ export function countForEpisode(
   assets: readonly RefAsset[],
   no: number,
 ): Record<DramaAssetType, number> {
-  const counts: Record<DramaAssetType, number> = { character: 0, scene: 0, prop: 0 };
+  const counts: Record<DramaAssetType, number> = {
+    character: 0,
+    scene: 0,
+    prop: 0,
+    audio: 0,
+  };
   for (const asset of assets) if (inEpisode(asset, no)) counts[asset.type] += 1;
   return counts;
 }

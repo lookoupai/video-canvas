@@ -118,7 +118,11 @@ describe("AgentComposer：画布能力开关", () => {
     useAgentAttachments = (await import("@/hooks/use-agent-attachments")).useAgentAttachments;
   });
 
-  afterAll(() => {
+  afterAll(async () => {
+    /** Tiptap 在卸载后的定时回调中销毁编辑器，先冲刷清理再撤掉 document。 */
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
     const g = globalThis as unknown as Record<string, unknown>;
     for (const key of GLOBALS) {
       Object.defineProperty(g, key, { value: saved[key], configurable: true, writable: true });

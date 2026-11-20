@@ -43,7 +43,7 @@ func (s *DramaService) checkAssetModel(ctx context.Context, key, kind, label str
 	return nil
 }
 
-// checkDramaModels 校验视频模型和三类资产的图片模型，nil 表示该项不改。
+// checkDramaModels 校验视频模型、三类资产和故事板的图片模型，nil 表示该项不改。
 func (s *DramaService) checkDramaModels(ctx context.Context, video *string, images *model.DramaImageModels) error {
 	if video != nil {
 		if err := s.checkAssetModel(ctx, *video, modelcfg.KindVideo, "视频模型"); err != nil {
@@ -53,7 +53,7 @@ func (s *DramaService) checkDramaModels(ctx context.Context, video *string, imag
 	if images == nil {
 		return nil
 	}
-	for _, item := range []struct{ key, label string }{{images.Character, "人物图片模型"}, {images.Scene, "场景图片模型"}, {images.Prop, "物品图片模型"}} {
+	for _, item := range []struct{ key, label string }{{images.Character, "人物图片模型"}, {images.Scene, "场景图片模型"}, {images.Prop, "物品图片模型"}, {images.Board, "故事板图片模型"}} {
 		if err := s.checkAssetModel(ctx, item.key, modelcfg.KindImage, item.label); err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ func dramaImageParams(p *model.DramaProject) model.DramaImageParams {
 	return out.Normalized()
 }
 
-// dramaImageModels 解码项目保存的三类图片模型；坏数据按未指定处理。
+// dramaImageModels 解码项目保存的图片模型（三类资产 + 故事板）；坏数据按未指定处理。
 func dramaImageModels(p *model.DramaProject) model.DramaImageModels {
 	var out model.DramaImageModels
 	if len(p.ImageModels) > 0 {

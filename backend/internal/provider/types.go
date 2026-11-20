@@ -16,6 +16,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/url"
+	"strings"
 
 	"video-canvas/internal/model"
 	"video-canvas/internal/provider/modelcfg"
@@ -368,4 +370,67 @@ type ModelLister interface {
 type UpstreamLimits struct {
 	Window int // 上下文窗口
 	Output int // 最大输出
+}
+
+// FilingTarget 是一次方舟虚拟人像库调用的目标：哪个渠道、哪个素材组、用哪对 AK/SK。
+// 管理域名与签名 region 由渠道 base_url 推断（国内站 / BytePlus 国际站），不让运营手填。
+type FilingTarget struct {
+	ChannelKey  string // 启用了虚拟人像库的渠道
+	BaseURL     string // 渠道 base_url，用来判断站点
+	GroupID     string // 素材组 ID
+	ProjectName string // 项目名
+	AccessKey   string // 火山引擎 / BytePlus IAM Access Key，只用来签名，绝不进日志和响应
+	SecretKey   string // 火山引擎 / BytePlus IAM Secret Key，同上
+}
+
+// FilingSite 是方舟虚拟人像库的一个站点：管理接口域名与 V4 签名的 region。
+type FilingSite struct {
+	Name   string // 展示用：cn-beijing / ap-southeast-1
+	Host   string // 管理接口域名
+	Region string // 签名 region
+}
+
+// 虚拟人像库只对方舟官方渠道开放：国内站和 BytePlus 国际站各一个推理域名，第三方中转没有素材库接口。
+var officialFilingHosts = map[string]struct{}{
+	"ark.cn-beijing.volces.com":       {},
+	"ark.ap-southeast.bytepluses.com": {},
+}
+
+// IsOfficialFilingHost 判断渠道 base_url 是不是方舟 / BytePlus 官方域名（整个域名相等，忽略大小写和端口）。
+func IsOfficialFilingHost(baseURL string) bool {
+	u, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil {
+		return false
+	}
+	_, ok := officialFilingHosts[strings.ToLower(u.Hostname())]
+	return ok
+}
+
+// FilingSiteFor 按渠道 base_url 判断站点：域名里带 byteplus 的是 BytePlus 国际站，其余按方舟国内站。
+// 管理域名与推理域名是两套，不能从推理域名机械拼出来：国内 ark.cn-beijing.volcengineapi.com，国际 ark.ap-southeast-1.byteplusapi.com。
+func FilingSiteFor(baseURL string) FilingSite {
+	host := baseURL
+	if u, err := url.Parse(baseURL); err == nil && u.Host != "" {
+		host = u.Host
+	}
+	if strings.Contains(strings.ToLower(host), "byteplus") {
+		return FilingSite{Name: "ap-southeast-1", Host: "ark.ap-southeast-1.byteplusapi.com", Region: "ap-southeast-1"}
+	}
+	return FilingSite{Name: "cn-beijing", Host: "ark.cn-beijing.volcengineapi.com", Region: "cn-beijing"}
+}
+
+// 方舟素材的审核状态（FilingClient.GetAsset 的返回值，已从上游取值归一）。
+const (
+	FilingAssetProcessing = "processing" // 审核中
+	FilingAssetActive     = "active"     // 可用
+	FilingAssetFailed     = "failed"     // 失败
+)
+
+// FilingAssetURIPrefix 是方舟素材引用的前缀：生成请求里写 asset://<素材 ID> 代替图片地址。
+const FilingAssetURIPrefix = "asset://"
+
+// FiledAssetResolver 把任务输入里的素材换成已备案的上游素材引用（asset://…）。
+// 只有素材在真人库里备案可用、且备案渠道就是任务所走的渠道时才返回 ok=true；其余情况调用方照常用图片地址。
+type FiledAssetResolver interface {
+	FiledAssetURI(ctx context.Context, userID, assetID uint64, channelKey string) (uri string, ok bool)
 }
