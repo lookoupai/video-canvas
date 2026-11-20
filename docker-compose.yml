@@ -43,6 +43,8 @@ services:
       APP_AI_PLUGIN_RUNNER_NETWORK: unix
       APP_AI_PLUGIN_RUNNER_ADDRESS: /run/plugin-runner/runner.sock
       APP_STORAGE_LOCAL_DIR: /app/data/assets
+      # 图片/视频参考以 URL 传给模型渠道时，需要渠道能访问的完整站点地址。
+      APP_STORAGE_LOCAL_BASE_URL: ${APP_STORAGE_LOCAL_BASE_URL:-}
       APP_SERVER_ALLOWED_ORIGINS: ${APP_SERVER_ALLOWED_ORIGINS:-http://localhost:38080}
       # 画布 Agent：会话、运行、审批在下方独立的 agent 服务里，backend 负责登录校验、反向代理和平台能力（画布读写、模型代理和计费、生成任务、素材）。
       # 默认开启，设为 false 关闭（关闭后画布里的 Agent 提示「暂不可用」）；还要在后台 AI 配置里发布 agent 类型的模型
