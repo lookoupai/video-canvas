@@ -30,7 +30,7 @@ module.exports = {
     apiVersion: 1,
     key: "agnes-video",
     name: "Agnes AI · 视频",
-    version: "1.0.1",
+    version: "1.0.2",
     vendor: "agnes",
     description: "Agnes AI 视频生成：文生视频、首尾帧、图片/音频/视频参考（异步轮询，完成后按 url 取片）",
     auth: { type: "bearer" },
@@ -98,7 +98,7 @@ module.exports = {
         body.audios = fileRefs(audios, referenceFormat);
       }
       if (videos.length > 0) {
-        body.videos = fileRefs(videos, referenceFormat);
+        body.videos = videoRefs(videos, referenceFormat);
       }
     }
 
@@ -278,6 +278,16 @@ function fileRefs(list, referenceFormat) {
   var out = [];
   for (var i = 0; i < list.length; i++) {
     out.push({ __fileRef: list[i], as: referenceFormat });
+  }
+  return out;
+}
+
+// Agnes 2.5 的 videos 接受 { url } 对象数组，图片与音频仍是字符串数组。
+// 契约：https://agnes-ai.com/en/docs/agnes-video-25
+function videoRefs(list, referenceFormat) {
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    out.push({ url: { __fileRef: list[i], as: referenceFormat } });
   }
   return out;
 }
