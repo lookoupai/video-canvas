@@ -48,15 +48,21 @@ type DramaSegmentDeps struct {
 	Broadcaster ws.Broadcaster
 	// Adapter 转写原稿；为 nil 时转写返回「没有可用的 Agent 模型」
 	Adapter DramaSegmentAdapter
+	// Intents 保存仿拍单镜的固定输入；普通片段不依赖它。
+	Intents DramaSegmentIntentRepo
+	// ReferenceClips 将采用的原镜裁为无声视频，仅显式使用视频参考时需要。
+	ReferenceClips DramaReferenceClipper
 }
 
 // DramaSegmentService 管理片段编辑、真实任务结果与自动采用。
 type DramaSegmentService struct {
-	repo    DramaSegmentRepo
-	tasks   DramaSegmentTaskCreator
-	assets  DramaSegmentAssetReader
-	bc      ws.Broadcaster
-	adapter DramaSegmentAdapter
+	repo           DramaSegmentRepo
+	tasks          DramaSegmentTaskCreator
+	assets         DramaSegmentAssetReader
+	bc             ws.Broadcaster
+	adapter        DramaSegmentAdapter
+	intents        DramaSegmentIntentRepo
+	referenceClips DramaReferenceClipper
 	// adapting 是进程内的转写锁，键为「片段:格式」
 	adapting sync.Map
 }
@@ -67,7 +73,7 @@ func NewDramaSegmentService(d DramaSegmentDeps) *DramaSegmentService {
 	if bc == nil {
 		bc = ws.NopBroadcaster{}
 	}
-	return &DramaSegmentService{repo: d.Repo, tasks: d.Tasks, assets: d.Assets, bc: bc, adapter: d.Adapter}
+	return &DramaSegmentService{repo: d.Repo, tasks: d.Tasks, assets: d.Assets, bc: bc, adapter: d.Adapter, intents: d.Intents, referenceClips: d.ReferenceClips}
 }
 
 // List 校验用户项目后按顺序返回片段，并恢复漏处理的成功任务写回。
@@ -96,7 +102,7 @@ func (s *DramaSegmentService) List(ctx context.Context, userID, dramaID uint64, 
 	return out, nil
 }
 
-// Summary 返回某集片段数、总秒数和已采用数，计数之前恢复任务写回。
+// Summary 返回某集片段数、成片总秒数和已采用数，计数之前恢复任务写回。
 func (s *DramaSegmentService) Summary(ctx context.Context, userID, episodeID uint64) (count, seconds, done int, err error) {
 	// 1. 使用集主键反查存活项目，沿用列表的归属和任务恢复规则。
 	ep, err := s.repo.SegmentEpisode(ctx, userID, episodeID)
@@ -107,14 +113,20 @@ func (s *DramaSegmentService) Summary(ctx context.Context, userID, episodeID uin
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	// 2. 已采用按chosen_task_id计数，不因后续失败take减少。
+	// 2. 跟拍累计精确目标毫秒，普通片段沿用秒数；只对总时长取整，避免逐镜舍入抬高时长。
+	var totalMs int64
 	for _, v := range views {
-		seconds += v.Seconds
+		if v.Remake != nil && v.Remake.TargetDurationMs > 0 {
+			totalMs += v.Remake.TargetDurationMs
+		} else {
+			totalMs += int64(v.Seconds) * 1000
+		}
+		// 已采用按 chosen_task_id 计数，不因后续失败 take 减少。
 		if v.ChosenTaskID != "" {
 			done++
 		}
 	}
-	return len(views), seconds, done, nil
+	return len(views), int((totalMs + 999) / 1000), done, nil
 }
 
 // episode 根据项目ID和集号定位，其他用户和父项目删除统一为短剧不存在。

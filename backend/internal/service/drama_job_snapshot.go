@@ -18,9 +18,10 @@ import (
 // Prompt 是任务主环节的设置；Extra 冻结任务顺带调用的其他环节（拆解顺带写资产图提示词）。
 type dramaJobConfig struct {
 	provider.Snapshot
-	Prompt    model.DramaPromptSetting            `json:"prompt"`
-	Extra     map[string]model.DramaPromptSetting `json:"extra_prompts,omitempty"`
-	KnownCast []drama.CastEntry                   `json:"known_cast"`
+	Prompt         model.DramaPromptSetting             `json:"prompt"`
+	Extra          map[string]model.DramaPromptSetting  `json:"extra_prompts,omitempty"`
+	KnownCast      []drama.CastEntry                    `json:"known_cast"`
+	ReferenceBases map[uint64]model.DramaReferenceBasis `json:"reference_bases,omitempty"`
 }
 
 // jobConfig 解码任务快照，缺少新字段的旧任务使用内置正文。
@@ -66,7 +67,10 @@ func (s *DramaService) snapshotDramaJob(ctx context.Context, tx repository.Drama
 			cfg.Extra[group] = extra
 		}
 	}
-	if j.Step != "analyze" && p.UnitsTotal > 0 {
+	if err := snapshotReferenceBases(ctx, tx, p, j, &cfg); err != nil {
+		return err
+	}
+	if j.Step != "analyze" && (p.UnitsTotal > 0 || p.SourceKind == "reference" || len(cfg.ReferenceBases) > 0) {
 		cast, err := snapshotKnownCast(ctx, tx, p)
 		if err != nil {
 			return err

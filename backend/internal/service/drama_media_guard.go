@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 
@@ -51,12 +52,26 @@ func guardDramaGeneration(ctx context.Context, tx repository.GenerationTaskTx, t
 	if !ok {
 		return errcode.ErrInvalidParams
 	}
-	p, ep, _, err := lockSegment(ctx, dtx, task.UserID, sid)
+	p, ep, row, err := lockSegment(ctx, dtx, task.UserID, sid)
 	if err != nil {
 		return segmentError(err)
 	}
+	// 项目锁等待期间原请求可能已经完成并开始下一轮重拍；旧键仍恢复自己的任务。
+	if task.IdempotencyKey != "" {
+		if existing, lookupErr := tx.FindByIdempotencyKey(ctx, task.UserID, task.IdempotencyKey); lookupErr == nil && existing != nil {
+			return nil
+		} else if lookupErr != nil && !errors.Is(lookupErr, repository.ErrNotFound) {
+			return lookupErr
+		}
+	}
 	if task.CanvasProjectID == nil || *task.CanvasProjectID != p.CanvasID || task.Kind != model.KindVideo {
 		return errcode.ErrInvalidParams
+	}
+	if ep.LockedAt == nil {
+		return errcode.ErrDramaStepNotReady
+	}
+	if err := guardSegmentIntent(ctx, task, row); err != nil {
+		return err
 	}
 	jobs, err := dtx.Jobs(ctx, p.UserID, p.ID, true)
 	if err != nil {

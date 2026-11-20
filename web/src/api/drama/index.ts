@@ -1,5 +1,6 @@
 import { mapAsset } from "@/api/asset";
 import service from "@/utils/requests/service";
+import { mapSegmentRemake } from "./remake";
 
 import type {
   BackendDramaStyles,
@@ -161,6 +162,7 @@ export const mapStyles = (raw: BackendDramaStyles): DramaStyles => ({
 
 /** 片段（契约 §9.2）：takes 可能为 null，task_id 兼容数字 */
 export const mapSegment = (raw: BackendSegmentView): Segment => ({
+  remake: mapSegmentRemake(raw.remake),
   id: String(raw.id),
   episodeNo: raw.episode_no,
   seq: raw.seq,
@@ -282,6 +284,8 @@ export const toSegmentUpdateBody = (input: UpdateSegmentInput) =>
     seconds: input.seconds,
     chosen_task_id: input.chosenTaskId,
     adaptation: input.adaptation,
+    target_duration_ms: input.targetDurationMs,
+    trim_start_ms: input.trimStartMs,
   });
 
 /** 获取题材与画风清单 */

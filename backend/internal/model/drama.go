@@ -53,18 +53,19 @@ func (DramaProject) TableName() string { return "drama_projects" }
 // DramaEpisode 集号定位的剧本，拆解后锁定正文和梗概。
 type DramaEpisode struct {
 	BaseModel
-	UserID              uint64 `gorm:"not null;index"`
-	DramaID             uint64 `gorm:"not null;uniqueIndex:uk_drama_episode_no,priority:1"`
-	No                  int    `gorm:"not null;uniqueIndex:uk_drama_episode_no,priority:2"`
-	Title               string `gorm:"size:255;not null;default:''"`
-	UnitFrom            int    `gorm:"not null;default:0"`
-	UnitTo              int    `gorm:"not null;default:0"`
-	Hook                string `gorm:"type:text;not null;default:''"`
-	Cliffhanger         string `gorm:"type:text;not null;default:''"`
-	Synopsis            string `gorm:"type:text;not null;default:''"`
-	ScriptMD            string `gorm:"type:text;not null;default:''"`
-	ScriptStatus        string `gorm:"size:16;not null;default:empty"`
-	StoryboardStatus    string `gorm:"size:16;not null;default:empty"`
+	ReferenceBasis      datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
+	UserID              uint64         `gorm:"not null;index"`
+	DramaID             uint64         `gorm:"not null;uniqueIndex:uk_drama_episode_no,priority:1"`
+	No                  int            `gorm:"not null;uniqueIndex:uk_drama_episode_no,priority:2"`
+	Title               string         `gorm:"size:255;not null;default:''"`
+	UnitFrom            int            `gorm:"not null;default:0"`
+	UnitTo              int            `gorm:"not null;default:0"`
+	Hook                string         `gorm:"type:text;not null;default:''"`
+	Cliffhanger         string         `gorm:"type:text;not null;default:''"`
+	Synopsis            string         `gorm:"type:text;not null;default:''"`
+	ScriptMD            string         `gorm:"type:text;not null;default:''"`
+	ScriptStatus        string         `gorm:"size:16;not null;default:empty"`
+	StoryboardStatus    string         `gorm:"size:16;not null;default:empty"`
 	FinalAssetID        *uint64
 	SegmentVersion      int64 `gorm:"not null;default:0"`
 	FinalSegmentVersion int64 `gorm:"not null;default:0"`

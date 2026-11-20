@@ -1,13 +1,25 @@
-FROM golang:1.27-bookworm
+FROM golang:1.27-bookworm AS go-tools
+
+# 与生产镜像使用同一 Python 版本及固定的分析依赖，重建容器无需手工安装。
+FROM python:3.12-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl ffmpeg git libgomp1 wget && rm -rf /var/lib/apt/lists/*
+COPY reference-runtime/ /opt/reference-build/
+RUN sh /opt/reference-build/install.sh && rm -rf /opt/reference-build
+COPY --from=go-tools /usr/local/go /usr/local/go
+ENV GOPATH=/go \
+    PATH="/opt/rea-video/bin:/usr/local/go/bin:/go/bin:${PATH}" \
+    REA_VIDEO_MODELS=/opt/rea-video/models \
+    PYTHONDONTWRITEBYTECODE=1 \
+    OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    OPENCV_FOR_THREADS_NUM=1
 
 WORKDIR /app
-
 # 先缓存模块下载；Compose 运行时会把 backend 源码挂载到 /app。
 COPY go.mod go.sum ./
-RUN go mod download && go install github.com/air-verse/air@latest
-
-# 画布 Agent 看视频、截帧需要 ffmpeg / ffprobe；安装后清理软件包索引以缩小镜像。
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+RUN go mod download && GOMAXPROCS=2 go install -p 1 github.com/air-verse/air@latest
 
 # 画布 Agent 运行时需要 node（agent.enabled=true 时才用）；依赖在宿主机的仓库根目录 agent/ 里 npm ci，agent/ 整个目录挂载到容器的 /agent（见 docker-compose.dev.yml）
 COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node

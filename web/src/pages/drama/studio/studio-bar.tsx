@@ -73,7 +73,7 @@ const SECOND_CHOICES = [3, 4, 5, 6, 8, 10, 12, 15, 20, 30];
 
 /** 当前片段的时长：选项不超过所选模型的时长上限，当前值总在里面；没有选中片段时不显示 */
 function SecondsChip() {
-  const { selected, actions, video } = useStudio();
+  const { selected, actions, video, plan } = useStudio();
   if (!selected) return null;
   const max = modelMaxSeconds(video.model?.capabilities) ?? 15;
   const options = [...new Set([...SECOND_CHOICES.filter((s) => s <= max), selected.seconds])].sort(
@@ -83,8 +83,16 @@ function SecondsChip() {
     <ChipPopover
       variant="bar"
       icon={<Timer />}
-      label={`${selected.seconds}s`}
-      title={`片段时长 · 模型上限 ${max}s`}
+      label={
+        selected.remake
+          ? `生成 ${String(plan?.input.duration ?? selected.seconds)}s`
+          : `${selected.seconds}s`
+      }
+      title={
+        selected.remake
+          ? `生成时长 · 成片保留 ${selected.remake.targetDurationMs / 1000}s`
+          : `片段时长 · 模型上限 ${max}s`
+      }
       width="w-40"
     >
       {(close) =>

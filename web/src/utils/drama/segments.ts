@@ -48,9 +48,13 @@ const CLIP_PER_SECOND = 12;
 export const clipWidth = (seconds: number): number =>
   Math.max(CLIP_MIN, Math.round(seconds * CLIP_PER_SECOND));
 
+/** 跟拍的时间线按目标时长展示，普通片段沿用计划秒数。 */
+export const segmentSeconds = (segment: Pick<Segment, "seconds" | "remake">): number =>
+  segment.remake ? segment.remake.targetDurationMs / 1000 : segment.seconds;
+
 /** 各片段时长之和（秒） */
-export const totalSeconds = (list: readonly Pick<Segment, "seconds">[]): number =>
-  list.reduce((sum, item) => sum + item.seconds, 0);
+export const totalSeconds = (list: readonly Pick<Segment, "seconds" | "remake">[]): number =>
+  list.reduce((sum, item) => sum + segmentSeconds(item), 0);
 
 /** 采用的那条 take；没有采用或找不到为 null */
 export const chosenTake = (segment: Segment): SegmentTake | null =>

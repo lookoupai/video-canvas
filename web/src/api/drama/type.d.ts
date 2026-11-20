@@ -1,5 +1,6 @@
 import type { AssetDto, BackendAssetDto } from "@/api/asset/type";
 import type { TaskStatus, TaskView } from "@/api/generation-task/type";
+import type { BackendSegmentRemake, SegmentRemake } from "./remake-type";
 
 /**
  * 短剧工作室接口类型（契约 docs/design/短剧工作室/接口契约.md）。
@@ -50,7 +51,7 @@ export type StoryboardStatus = "empty" | "generating" | "ready" | "failed";
 export type DramaRatio = "9:16" | "16:9" | "21:9" | "3:4" | "4:3" | "1:1" | "";
 
 /** 原文类型，研读前为空串 */
-export type DramaSourceKind = "script" | "novel" | "";
+export type DramaSourceKind = "script" | "novel" | "reference" | "";
 
 /** 开拍设置可选的画幅：只有三档 */
 export type StartRatio = "9:16" | "16:9" | "4:3";
@@ -460,6 +461,8 @@ export interface BackendSegmentTake {
 }
 
 export interface BackendSegmentView {
+  /** 仿拍片段的不可变来源与当前成片窗口，普通片段为空。 */
+  remake?: BackendSegmentRemake | null;
   id: string;
   episode_no: number;
   seq: number;
@@ -505,6 +508,8 @@ export interface SegmentTake {
 }
 
 export interface Segment {
+  /** 采用的原镜依据；后续修改参考稿不会覆盖它。 */
+  remake?: SegmentRemake | null;
   id: string;
   episodeNo: number;
   /** 从 0 开始，按它排序 */
@@ -529,6 +534,10 @@ export interface UpdateSegmentInput {
   prompt?: string;
   seconds?: number;
   chosenTaskId?: string;
+  /** 仿拍成片保留长度，毫秒。 */
+  targetDurationMs?: number;
+  /** 从采用素材裁取的起点，毫秒。 */
+  trimStartMs?: number;
   /** 手改某个格式的转写稿 */
   adaptation?: { format: AdaptFormat; prompt: string };
 }
@@ -548,6 +557,10 @@ export interface AddSegmentInput {
 
 /** generate 请求体：input 与 POST /generation-tasks 的 input 同构 */
 export interface SegmentGenerateBody {
+  /** 跟拍片段必须提交当前修订。 */
+  revision?: number;
+  /** 服务器按固定来源裁出无声参考片。 */
+  use_reference_video?: boolean;
   model_id: string;
   input: Record<string, unknown>;
 }

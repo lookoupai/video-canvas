@@ -8,6 +8,7 @@ import { hasVideo, latestError } from "@/utils/drama/segments";
 
 import { PromptPane } from "./prompt-pane";
 import { RefsBar } from "./refs-bar";
+import { RemakePanel } from "./remake-panel";
 import { useStudio } from "./use-studio";
 
 /** 右侧检查器：撑满所在分栏（宽度由用户拖动），自己滚动 */
@@ -70,6 +71,8 @@ export function Editor() {
         </div>
 
         <RefsBar />
+
+        <RemakePanel />
 
         <PromptPane key={selected.id} segment={selected} />
 

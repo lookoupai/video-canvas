@@ -7,6 +7,8 @@ import type {
   BackendMarketingOptions,
   BackendMethod,
   BackendProductFacts,
+  BackendRemakePreview,
+  BackendRemakeSource,
   BackendProject,
   BackendProjectSummary,
   BackendReverse,
@@ -28,6 +30,8 @@ import type {
   Quote,
   QuoteInput,
   RenderAllResult,
+  RemakePreview,
+  RemakeSource,
   Reverse,
   ReverseShot,
   Round,
@@ -39,6 +43,39 @@ import type {
   TaskLite,
   UpdateRoundSettingsInput,
 } from "./type";
+
+/** 将数据库原片区间转换为播放器使用的秒。
+ * @param source 原镜号和毫秒区间
+ * @returns 可直接回放的原片区间
+ */
+export const mapRemakeSource = (source: BackendRemakeSource): RemakeSource => ({
+  refShot: source.ref_shot,
+  start: source.start_ms / 1000,
+  end: source.end_ms / 1000,
+});
+
+/**
+ * 读取跟拍采用的原片区间，统一换算为播放器使用的秒。
+ * @param scriptId 跟拍脚本 ID
+ * @returns 对应修订的成片镜和原镜列表
+ */
+export async function getRemakePreview(scriptId: string): Promise<RemakePreview> {
+  const raw = await service.get<BackendRemakePreview>(
+    `/marketing-scripts/${scriptId}/remake-preview`,
+  );
+  return {
+    revision: raw.revision,
+    refVideoAssetId: raw.ref_video_asset_id ? String(raw.ref_video_asset_id) : null,
+    basisChanged: raw.basis_changed,
+    partialMapping: raw.partial_mapping,
+    shots: (raw.shots ?? []).map((shot) => ({
+      duration: shot.duration_ms / 1000,
+      scene: shot.scene,
+      unresolved: shot.unresolved,
+      sources: (shot.sources ?? []).map(mapRemakeSource),
+    })),
+  };
+}
 
 /** 新建一次出片 / 一键出片的幂等键；同一次点击的重试要沿用同一个 */
 export const newIdempotencyKey = (): string => crypto.randomUUID();

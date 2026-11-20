@@ -7,6 +7,79 @@ export type MarketingPlatform =
   | "amazon"
   | "reels"
   | "generic";
+/** 只读预览接口的原片来源与成片镜序。 */
+export interface BackendRemakePreview {
+  /** 跟拍脚本修订号 */
+  revision: number;
+  /** 原视频素材 ID */
+  ref_video_asset_id: number | null;
+  /** 拆解已与写稿时不同 */
+  basis_changed: boolean;
+  /** 旧稿的来源记录可能不完整 */
+  partial_mapping: boolean;
+  /** 按成片镜序排列 */
+  shots: {
+    /** 目标时长，毫秒 */
+    duration_ms: number;
+    /** 成片镜头画面 */
+    scene: string;
+    /** 部分来源区间无法确定 */
+    unresolved: boolean;
+    /** 原片本地时间区间 */
+    sources: BackendRemakeSource[];
+  }[];
+}
+
+/** API 中的原片区间，按毫秒记录。 */
+export interface BackendRemakeSource {
+  /** 从 1 起的原镜号 */
+  ref_shot: number;
+  /** 含起点，毫秒 */
+  start_ms: number;
+  /** 不含终点，毫秒 */
+  end_ms: number;
+}
+
+export type {
+  RemakePlanSummary,
+  RemakePlan,
+  RemakePlanShot,
+  RemakeShotPatch,
+  RemakeComposition,
+} from "./remake-type";
+
+/** 单段可回放的原镜。 */
+export interface RemakeSource {
+  /** 原镜号 */
+  refShot: number;
+  /** 原片起点，秒 */
+  start: number;
+  /** 原片终点，秒 */
+  end: number;
+}
+
+/** 跟拍修订及其逐镜回放依据。 */
+export interface RemakePreview {
+  /** 脚本修订号 */
+  revision: number;
+  /** 与轮次的参考视频核对后播放 */
+  refVideoAssetId: string | null;
+  /** 当前拆解与跟拍依据不同 */
+  basisChanged: boolean;
+  /** 映射或依据缺失 */
+  partialMapping: boolean;
+  /** 成片镜序 */
+  shots: {
+    /** 成片目标时长，秒 */
+    duration: number;
+    /** 目标镜描述 */
+    scene: string;
+    /** 部分来源待关联 */
+    unresolved: boolean;
+    /** 该镜采用的原片区间，保持映射顺序 */
+    sources: RemakeSource[];
+  }[];
+}
 
 /** 创意角度；跟拍脚本的角度固定为 follow */
 export type MarketingAngle = "pain" | "feature" | "lifestyle" | "compare" | "unbox" | "mood";

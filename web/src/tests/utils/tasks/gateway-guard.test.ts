@@ -32,6 +32,7 @@ describe("生成任务统一入口（utils/tasks/gateway.ts）", () => {
       "createGenerationTask",
       "cancelGenerationTask",
       "submitConversationRecord",
+      "generateRemakeShot",
     ]) {
       const users = filesUsing(new RegExp(`\\b${name}\\b`)).filter(
         // 定义它们的 api 模块本身不算

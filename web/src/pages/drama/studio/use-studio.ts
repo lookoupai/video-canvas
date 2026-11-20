@@ -82,6 +82,14 @@ export type Studio = {
   /** 顶栏选的生成参数（分辨率等） */
   overrides: Record<string, unknown>;
   setOverride: (name: string, value: unknown) => void;
+  /** 当前模型是否支持原镜视频参考。 */
+  canReferenceVideo: boolean;
+  /** 当前片段这次是否带入无声原镜裁片。 */
+  useReferenceVideo: boolean;
+  /** 保存当前片段的视频参考偏好。 */
+  setReferenceVideo: (value: boolean) => void;
+  /** 精确窗口尚未保存时暂停生成，以免报价与提交时长不一致。 */
+  windowSavePending: boolean;
   /**
    * 选中片段此刻要提交的文字（还没存下来的也算）：目标格式是 Seedance 时是原稿，
    * 其他格式有转写稿时是转写稿、没有时是原稿；参考素材条和报价跟着它变
@@ -113,6 +121,8 @@ export type Studio = {
     remove: (segment: Segment) => Promise<void>;
     reorder: (ids: string[]) => Promise<void>;
     setSeconds: (segment: Segment, seconds: number) => Promise<void>;
+    /** 保存精确成片窗口，并刷新成片过期状态。 */
+    setWindow: (segment: Segment, targetDurationMs: number, trimStartMs: number) => Promise<void>;
     patch: (sid: string, fields: Omit<UpdateSegmentInput, "revision">) => Promise<Segment>;
     choose: (segment: Segment, taskId: string) => Promise<void>;
     /**
@@ -170,6 +180,9 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
   const [adaptErrors, setAdaptErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<ReadonlySet<string>>(new Set());
   const [saveStates, setSaveStates] = useState<Record<string, AutosaveStatus>>({});
+  const windowSavePending = Object.entries(saveStates).some(
+    ([name, status]) => name.startsWith("remake:") && status !== "saved",
+  );
   const editors = useRef(new Set<EditorHandle>());
   const queues = useRef(new Map<string, Promise<unknown>>());
 
@@ -209,6 +222,32 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
     [segments, selectedId],
   );
   const caps = video.model?.capabilities;
+  const canReferenceVideo =
+    !!caps?.refs?.video?.on && (caps.refs.video.max ?? 0) > 0 && !!caps.ops?.includes("omni");
+  const remakeOptions = useCallback(
+    (segment: Segment) => {
+      if (!segment.remake) return undefined;
+      const useVideo =
+        canReferenceVideo &&
+        segment.remake.sources.length > 0 &&
+        (prefs.referenceVideos?.[segment.id] ?? true);
+      return {
+        targetDurationMs: segment.remake.targetDurationMs,
+        trimStartMs: segment.remake.trimStartMs,
+        referenceVideoAssetId: useVideo ? segment.remake.assetId : undefined,
+      };
+    },
+    [canReferenceVideo, prefs.referenceVideos],
+  );
+  const setReferenceVideo = useCallback(
+    (value: boolean) => {
+      if (!selected) return;
+      useStudioPrefsStore
+        .getState()
+        .patch(dramaId, { referenceVideos: { ...prefs.referenceVideos, [selected.id]: value } });
+    },
+    [dramaId, prefs.referenceVideos, selected],
+  );
   const format = targetFormat(caps);
   const setDraft = useCallback<Studio["setDraft"]>((id, text, kind = "source") => {
     const name = `${id}:${kind}`;
@@ -250,9 +289,10 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
             ratio: drama.ratio,
             overrides: prefs.overrides,
             assets,
+            remake: remakeOptions(selected),
           })
         : null,
-    [assets, caps, drama.ratio, prefs.overrides, prompt, selected],
+    [assets, caps, drama.ratio, prefs.overrides, prompt, selected, remakeOptions],
   );
   const credits = useMemo(() => {
     if (!plan || !video.model || Object.keys(plan.input).length === 0) return undefined;
@@ -410,17 +450,27 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
         ratio: drama.ratio,
         overrides: prefs.overrides,
         assets: latest,
+        remake: remakeOptions(segment),
       });
       const firstError = Object.values(built.errors)[0];
       if (firstError) return { ok: false as const, message: firstError };
       try {
-        await submitSegmentTask(segment.id, { model_id: model.key, input: built.input });
+        await submitSegmentTask(segment.id, {
+          model_id: model.key,
+          input: built.input,
+          ...(segment.remake
+            ? {
+                revision: segment.revision,
+                use_reference_video: !!remakeOptions(segment)?.referenceVideoAssetId,
+              }
+            : {}),
+        });
         return { ok: true as const };
       } catch (e) {
         return { ok: false as const, message: describeSubmitError(e).message };
       }
     },
-    [drama.ratio, prefs.overrides, video.model],
+    [drama.ratio, prefs.overrides, video.model, remakeOptions],
   );
 
   /**
@@ -462,6 +512,10 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
 
   const generate = useCallback<Studio["actions"]["generate"]>(
     async (segment, options) => {
+      if (windowSavePending) {
+        toast.error("请先保存成片裁剪，再确认本次生成积分");
+        return;
+      }
       if (submitting.has(segment.id)) return;
       markSubmitting(segment.id, true);
       try {
@@ -483,6 +537,7 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
           ratio: drama.ratio,
           overrides: prefs.overrides,
           assets: latest,
+          remake: remakeOptions(current),
         });
         if (preview.deadLabels.length > 0 && !options?.deadConfirmed) {
           const go = await confirm({
@@ -499,6 +554,13 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
           return;
         }
         void reloadSegments(dramaId, no);
+      } catch (cause) {
+        toast.error(
+          dramaErrorMessage(
+            cause,
+            cause instanceof Error ? cause.message : "提交前保存失败，请重试",
+          ),
+        );
       } finally {
         markSubmitting(segment.id, false);
       }
@@ -516,6 +578,8 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
       submitVideo,
       submitting,
       video.model,
+      remakeOptions,
+      windowSavePending,
     ],
   );
 
@@ -577,6 +641,10 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
   );
 
   const batch = useCallback<Studio["actions"]["batch"]>(async () => {
+    if (windowSavePending) {
+      toast.error("请先保存成片裁剪，再确认本次生成积分");
+      return;
+    }
     const all = batchTargets(useDramaSegmentsStore.getState().byEpisode[key] ?? NO_SEGMENTS);
     if (all.length === 0) {
       toast.info("没有待生成的片段");
@@ -605,6 +673,7 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
         ratio: drama.ratio,
         overrides: prefs.overrides,
         assets: latest,
+        remake: remakeOptions(item),
       }).deadLabels.forEach((label) => dead.add(label));
     }
     if (dead.size > 0) {
@@ -628,6 +697,8 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
     prefs.overrides,
     prepareBatch,
     video.model,
+    remakeOptions,
+    windowSavePending,
   ]);
 
   const add = useCallback<Studio["actions"]["add"]>(async () => {
@@ -690,6 +761,14 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
     [patchWithStatus, refresh],
   );
 
+  const setWindow = useCallback<Studio["actions"]["setWindow"]>(
+    async (segment, targetDurationMs, trimStartMs) => {
+      await patchWithStatus(segment.id, { targetDurationMs, trimStartMs });
+      void refresh();
+    },
+    [patchWithStatus, refresh],
+  );
+
   const choose = useCallback<Studio["actions"]["choose"]>(
     async (segment, taskId) => {
       const check = chooseCheck(segment, taskId);
@@ -733,6 +812,10 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
     video,
     overrides: prefs.overrides,
     setOverride,
+    canReferenceVideo,
+    useReferenceVideo: !!selected && !!remakeOptions(selected)?.referenceVideoAssetId,
+    setReferenceVideo,
+    windowSavePending,
     prompt,
     setDraft,
     format,
@@ -746,6 +829,6 @@ export function useStudioState(drama: Drama, no: number, refresh: () => Promise<
     reportSave,
     submitting,
     registerEditor,
-    actions: { add, remove, reorder, setSeconds, patch, choose, generate, batch, adapt },
+    actions: { add, remove, reorder, setSeconds, setWindow, patch, choose, generate, batch, adapt },
   };
 }

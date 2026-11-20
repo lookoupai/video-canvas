@@ -6,6 +6,8 @@ export type StudioPrefs = {
   videoModel: string;
   /** 用户在顶栏选的生成参数（分辨率等），键是模型参数名 */
   overrides: Record<string, unknown>;
+  /** 按片段保存是否使用无声原镜参考，未设置时跟随模型支持情况。 */
+  referenceVideos?: Record<string, boolean>;
 };
 
 const EMPTY: StudioPrefs = { videoModel: "", overrides: {} };
@@ -25,6 +27,17 @@ export function readPrefs(dramaId: string): StudioPrefs {
         !Array.isArray(parsed.overrides)
           ? parsed.overrides
           : {},
+      ...(parsed?.referenceVideos &&
+      typeof parsed.referenceVideos === "object" &&
+      !Array.isArray(parsed.referenceVideos)
+        ? {
+            referenceVideos: Object.fromEntries(
+              Object.entries(parsed.referenceVideos).filter(
+                ([, value]) => typeof value === "boolean",
+              ),
+            ),
+          }
+        : {}),
     };
   } catch {
     return EMPTY;

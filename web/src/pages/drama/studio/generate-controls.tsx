@@ -10,8 +10,10 @@ import { useStudio } from "./use-studio";
 
 /** 为什么现在不能生成；能生成为 null（写进按钮的悬停提示） */
 function useBlockedReason(): string | null {
-  const { selected, plan, video, submitting, format, adaptStateOf } = useStudio();
+  const { selected, plan, video, submitting, format, adaptStateOf, windowSavePending } =
+    useStudio();
   if (!selected || !plan) return "还没有片段";
+  if (windowSavePending) return "请先保存成片裁剪，再确认本次生成积分";
   if (selected.status === "running") return "这个片段正在生成";
   if (submitting.has(selected.id)) return "正在提交";
   if (video.status === "idle" || video.status === "loading") return "正在加载模型清单";

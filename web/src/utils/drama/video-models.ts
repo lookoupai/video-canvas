@@ -46,7 +46,7 @@ export function storyboardMaxSeconds(info: ModelInfo | undefined): number {
 }
 
 /**
- * 把片段时长适配到模型的时长参数：数字参数夹在 min–max；枚举取不小于它的最近选项，都比它小就取最大。
+ * 把片段时长适配到模型档位：数字按步长向上取值，再限制在合法范围；枚举取不小于它的最近选项，都比它小就取最大。
  * adjusted 表示和片段原时长不一样，提交时提示用户。
  */
 export function fitDuration(
@@ -55,8 +55,11 @@ export function fitDuration(
 ): { value: number; adjusted: boolean } {
   let value = seconds;
   if (field.type === "number") {
-    if (field.min !== undefined) value = Math.max(field.min, value);
-    if (field.max !== undefined) value = Math.min(field.max, value);
+    const min = field.min ?? 0;
+    const step = Math.max(1, field.step ?? 1);
+    value = min + Math.max(0, Math.ceil((value - min) / step)) * step;
+    if (field.max !== undefined)
+      value = Math.min(min + Math.floor((field.max - min) / step) * step, value);
   } else {
     const options = numericOptions(field).sort((a, b) => a - b);
     if (options.length > 0) value = options.find((option) => option >= seconds) ?? options.at(-1)!;

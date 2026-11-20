@@ -17,6 +17,7 @@ type DramaSegment struct {
 	Seconds      int    `gorm:"not null;default:5"`
 	Prompt       string `gorm:"type:text;not null;default:''"`
 	ChosenTaskID *uint64
+	Remake       datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	// Adaptations 按格式（h3 / generic）存原稿的转写稿，值为 DramaSegmentAdaptation；原稿就是 Seedance，不存 seedance 键
 	Adaptations datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Revision    int64          `gorm:"not null;default:1"`
@@ -44,6 +45,7 @@ type DramaSegmentTakeView struct {
 
 // DramaSegmentView 是片段工作区和 WebSocket 共用视图。
 type DramaSegmentView struct {
+	Remake       *DramaSegmentRemake               `json:"remake"`
 	ID           idcodec.ID                        `json:"id"`
 	EpisodeNo    int                               `json:"episode_no"`
 	Seq          int                               `json:"seq"`
@@ -70,6 +72,9 @@ type UpdateDramaSegmentReq struct {
 	Prompt       *string     `json:"prompt"`
 	Seconds      *int        `json:"seconds" binding:"omitempty,min=1" label:"片段时长"`
 	ChosenTaskID *idcodec.ID `json:"chosen_task_id"`
+	// TargetDurationMs 与 TrimStartMs 仅适用于已采用参考镜的片段，单位为毫秒。
+	TargetDurationMs *int64 `json:"target_duration_ms" binding:"omitempty,min=33" label:"成片时长"`
+	TrimStartMs      *int64 `json:"trim_start_ms" binding:"omitempty,min=0" label:"裁剪起点"`
 	// Adaptation 手改某个格式的转写稿；该格式必须已经转写过
 	Adaptation *DramaSegmentAdaptationEdit `json:"adaptation"`
 }
@@ -95,4 +100,8 @@ type OrderDramaSegmentsReq struct {
 type GenerateDramaSegmentReq struct {
 	ModelID string         `json:"model_id" binding:"required,max=128" label:"模型"`
 	Input   map[string]any `json:"input" binding:"required" label:"生成参数"`
+	// Revision 对参考片段必填，旧的普通片段保留零值兼容。
+	Revision int64 `json:"revision" binding:"min=0" label:"片段版本"`
+	// UseReferenceVideo 由服务器按已采用区间裁出静音视频后替换输入中的 videos。
+	UseReferenceVideo bool `json:"use_reference_video"`
 }

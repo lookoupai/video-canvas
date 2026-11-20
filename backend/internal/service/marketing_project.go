@@ -204,6 +204,16 @@ func (s *MarketingService) DeleteProject(ctx context.Context, userID, id uint64)
 		} else if n > 0 {
 			return errcode.ErrMarketingBusyDelete
 		}
+		if n, err := tx.ActiveRemakeTasks(ctx, userID, id); err != nil {
+			return err
+		} else if n > 0 {
+			return errcode.ErrMarketingBusyDelete
+		}
+		if n, err := tx.ActiveRemakeCompositions(ctx, userID, id); err != nil {
+			return err
+		} else if n > 0 {
+			return errcode.ErrMarketingBusyDelete
+		}
 		return tx.DeleteProject(ctx, userID, id)
 	})
 }

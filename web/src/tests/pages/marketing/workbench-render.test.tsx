@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { MemoryRouter } from "react-router";
 
 import type { Project, Round, Script } from "@/api/marketing/type";
@@ -141,6 +141,79 @@ describe("创作台：左栏", () => {
 });
 
 describe("创作台：检查器", () => {
+  test("逐镜仿拍按跟拍快照分别回放原镜 1、3，重新打开时重新查询", async () => {
+    const http = (await import("@/utils/requests/service")).default;
+    const get = spyOn(http, "get").mockResolvedValue({
+      revision: 4,
+      ref_video_asset_id: 103,
+      partial_mapping: true,
+      basis_changed: true,
+      shots: [
+        {
+          duration_ms: 2000,
+          scene: "挤出乳霜",
+          sources: [
+            { ref_shot: 1, start_ms: 0, end_ms: 2500 },
+            { ref_shot: 3, start_ms: 5000, end_ms: 7500 },
+          ],
+        },
+        { duration_ms: 3000, scene: "展示商品", sources: [] },
+      ],
+    });
+    const r = round();
+    const p = prepare(r, r.scripts[0].id);
+    const { container, unmount } = await env.mount(
+      <MemoryRouter>
+        <ScriptInspector
+          project={p}
+          round={r}
+          script={r.scripts[0]}
+          available={1000}
+          actions={actions}
+        />
+      </MemoryRouter>,
+    );
+    try {
+      const open = Array.from(container.querySelectorAll("button")).find(
+        (el) => el.textContent === "逐镜仿拍",
+      );
+      expect(open).toBeDefined();
+      await env.click(open);
+      const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+      expect(dialog.textContent).toContain("成片 2 秒");
+      expect(
+        Array.from(dialog.querySelectorAll("button")).some((el) => el.textContent === "单镜制作"),
+      ).toBe(true);
+      expect(dialog.textContent).toContain("待关联");
+      expect(dialog.textContent).toContain("原拆解");
+      expect(dialog.textContent).toContain("映射可能不完整");
+      for (const [label, fragment] of [
+        ["原镜 1", "#t=0,2.5"],
+        ["原镜 3", "#t=5,7.5"],
+      ]) {
+        const ref = Array.from(dialog.querySelectorAll("button")).find((el) =>
+          el.textContent?.includes(label),
+        );
+        expect(ref).toBeDefined();
+        await env.click(ref);
+        expect(dialog.querySelector("video")?.src).toBe("https://x/ref.mp4" + fragment);
+        const video = dialog.querySelector("video")!;
+        const end = Number(fragment.split(",")[1]);
+        video.currentTime = end + 0.15;
+        video.dispatchEvent(new env.win.Event("timeupdate"));
+        expect(video.currentTime).toBe(end);
+      }
+      await env.click(dialog.querySelector('[data-slot="dialog-close"]'));
+      await env.click(open);
+      expect(
+        get.mock.calls.filter(([path]) => path === "/marketing-scripts/x1/remake-preview"),
+      ).toHaveLength(2);
+    } finally {
+      await unmount();
+      get.mockRestore();
+    }
+  });
+
   test("原片：参考拆解全部字段与重写跟拍版", async () => {
     const out = await reverseInspector(round());
     expect(out).toContain("参考拆解");

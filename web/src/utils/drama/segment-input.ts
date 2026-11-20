@@ -176,24 +176,60 @@ export function planSegmentInput(args: {
   ratio: string;
   overrides: Record<string, unknown>;
   assets: readonly RefAsset[];
+  /** 仿拍目标窗口，以及本次是否使用原镜视频参考。 */
+  remake?: {
+    /** 成片保留长度，毫秒。 */
+    targetDurationMs: number;
+    /** 采用素材中的裁剪起点，毫秒。 */
+    trimStartMs: number;
+    /** 原素材仅供前端校验参考数量，提交后由服务器替换为无声裁片。 */
+    referenceVideoAssetId?: string;
+  };
 }): SegmentPlan {
   const { caps, prompt } = args;
   const linked = linkRefs(prompt, args.assets);
-  const op = pickVideoOp(caps, {
-    hasImages: hasImageRefs({}, { images: imageLinksOf(linked.links) }),
-  });
-  const params = {
+  const reference = args.remake?.referenceVideoAssetId;
+  if (reference)
+    linked.links.push({
+      edgeId: "drama-reference",
+      sourceId: "drama-reference",
+      sourceKind: "video",
+      sourceLabel: "原镜参考",
+      targetHandle: null,
+      assetId: reference,
+    });
+  const op =
+    reference && caps?.ops?.includes("omni")
+      ? "omni"
+      : pickVideoOp(caps, {
+          hasImages: hasImageRefs({}, { images: imageLinksOf(linked.links) }),
+        });
+  const requiredSeconds = args.remake
+    ? Math.ceil((args.remake.trimStartMs + args.remake.targetDurationMs) / 1000)
+    : args.seconds;
+  const seconds = Math.max(args.seconds, requiredSeconds);
+  const params: Record<string, unknown> = {
     prompt,
-    ...segmentParams(caps, { seconds: args.seconds, ratio: args.ratio, overrides: args.overrides }),
+    ...segmentParams(caps, { seconds, ratio: args.ratio, overrides: args.overrides }),
   };
   const bindings = resolveBindings(caps, op, linked.links, params);
   const built = buildTaskInput(caps, params, bindings, op, linked.links);
 
+  if (reference && (!caps?.refs?.video?.on || (caps.refs.video.max ?? 0) < 1 || op !== "omni")) {
+    built.errors.videos = "当前模型不支持原镜视频参考，请关闭参考或更换模型";
+  }
+  if (args.remake && typeof params.duration === "number" && params.duration < requiredSeconds) {
+    built.errors.duration = "模型时长不足以覆盖成片裁剪窗口，请调整窗口或更换模型";
+  }
+
   const notices = [...bindings.notices];
   const duration = durationField(caps);
   if (duration) {
-    const fit = fitDuration(duration, args.seconds);
-    if (fit.adjusted) notices.push(`片段 ${args.seconds}s 超出模型范围，按 ${fit.value}s 生成`);
+    const fit = fitDuration(duration, seconds);
+    if (args.remake)
+      notices.push(`成片保留 ${args.remake.targetDurationMs / 1000}s，本次生成 ${fit.value}s`);
+    else if (fit.adjusted)
+      notices.push(`片段 ${args.seconds}s 超出模型范围，按 ${fit.value}s 生成`);
   }
   const images = built.input.images;
   return {

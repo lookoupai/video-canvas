@@ -5,7 +5,7 @@ import { VideoPoster } from "@/components/canvas/media-preview";
 import { EASE_OUT } from "@/lib/motion";
 import { TaskGenerationStatus } from "@/components/generation-status";
 import { cn } from "@/lib/utils";
-import { playableTake } from "@/utils/drama/segments";
+import { playableTake, segmentSeconds } from "@/utils/drama/segments";
 
 import { TakeCarousel } from "./take-carousel";
 import { usePlaybackContext } from "./use-playback";
@@ -106,6 +106,7 @@ export function Preview() {
                 onEnded={slot.onEnded}
                 onError={slot.onError}
                 onTimeUpdate={slot.onTimeUpdate}
+                onLoadedMetadata={slot.onLoadedMetadata}
                 className={cn(
                   "absolute inset-0 size-full bg-black object-contain",
                   !(playback.active && slot.visible) && "pointer-events-none opacity-0",
@@ -121,7 +122,7 @@ export function Preview() {
                   连播{playback.playing ? "中" : "已暂停"}
                 </span>
               </span>
-              <span>{current?.seconds}s</span>
+              <span>{current ? segmentSeconds(current) : 0}s</span>
             </div>
           ) : running ? (
             <TaskGenerationStatus className="size-full" />

@@ -296,6 +296,13 @@ type MarketingRefVideo struct {
 	Duration float64 `json:"duration"`
 }
 
+// MarketingRemakePlanSummary 让工作台按脚本修订重新打开既有制作计划。
+type MarketingRemakePlanSummary struct {
+	ID             idcodec.ID `json:"id"`
+	ScriptID       idcodec.ID `json:"script_id"`
+	ScriptRevision int64      `json:"script_revision"`
+}
+
 // MarketingMethodView 是环节方法的展示。
 type MarketingMethodView struct {
 	Source     string `json:"source"`

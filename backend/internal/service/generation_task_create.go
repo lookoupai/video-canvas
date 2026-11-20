@@ -33,6 +33,9 @@ func (s *GenerationTaskService) Create(ctx context.Context, userID uint64, idemp
 	if len(nodes) == 0 {
 		nodes = []string{req.NodeID}
 	}
+	if err := checkRemakeSubmission(ctx, userID, idempotencyKey, nodes); err != nil {
+		return nil, err
+	}
 	if len(idempotencyKey) > maxIdempotencyKeyLen-len("#9") {
 		return nil, errcode.ErrInvalidParams.WithMsg("Idempotency-Key 过长")
 	}
@@ -335,6 +338,13 @@ func (s *GenerationTaskService) insertAndFreeze(ctx context.Context, task *model
 	}
 	var existing *model.GenerationTask
 	err = s.repo.WithTx(ctx, func(tx repository.GenerationTaskTx) error {
+		// 0a. 逐镜重拍先复查本次意图，再检查该镜的其他在途任务。
+		//     慢请求可能跨过前次完成与后次重拍，已提交的意图仍应返回原任务。
+		if strings.HasPrefix(task.NodeID, remakeNodePrefix) {
+			if existing, err = guardRemakeTask(ctx, tx, task); err != nil || existing != nil {
+				return err
+			}
+		}
 		// 0. 片段媒体先锁短剧项目，再锁账户；与短剧任务采用同一顺序，防止片段与同集分镜、合成并发穿透以及死锁。
 		if strings.HasPrefix(task.NodeID, "seg:") {
 			if existing, err = s.findIdempotent(ctx, tx, userID, key); err != nil || existing != nil {

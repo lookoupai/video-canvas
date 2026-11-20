@@ -87,6 +87,11 @@ func (s *DramaSegmentService) segmentView(ctx context.Context, row *model.DramaS
 		return nil, err
 	}
 	v := &model.DramaSegmentView{ID: idcodec.ID(row.ID), EpisodeNo: no, Seq: row.Seq, Seconds: row.Seconds, Prompt: row.Prompt, Adaptations: adaptations, Takes: []model.DramaSegmentTakeView{}, Status: "idle", Revision: row.Revision, UpdatedAt: row.UpdatedAt}
+	if len(row.Remake) > 0 && string(row.Remake) != "{}" && string(row.Remake) != "null" {
+		if err := json.Unmarshal(row.Remake, &v.Remake); err != nil {
+			return nil, err
+		}
+	}
 	if row.ChosenTaskID != nil {
 		v.ChosenTaskID, v.Status = idcodec.Encode(*row.ChosenTaskID), "done"
 	}

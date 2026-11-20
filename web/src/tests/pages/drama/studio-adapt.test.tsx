@@ -89,6 +89,20 @@ describe("片场：原稿 / 转写标签", () => {
 });
 
 describe("片场：生成按钮的拦截原因", () => {
+  test("成片裁剪未保存时先保存窗口，避免按旧时长报价后提交新时长", () => {
+    const html = render(
+      studio({
+        selected: seg(),
+        format: "seedance",
+        adaptStateOf: () => null,
+        windowSavePending: true,
+      }),
+      <GenerateControls />,
+    );
+    expect(html).toContain("请先保存成片裁剪");
+    expect(html).toContain("disabled");
+  });
+
   test("H3 模型还没转写：禁用并写明先转写", () => {
     const html = render(studio({ selected: seg() }), <GenerateControls />);
     expect(html).toContain("先把原稿转写为 H3");

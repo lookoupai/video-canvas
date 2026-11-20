@@ -225,6 +225,7 @@ type rigOpts struct {
 	agentNotify bool                   // 终态事务里是否入队门铃（Agent 已启用）
 	stepTrial   queue.StepTrialHandler // 非空时注册环节试跑 worker
 	marketing   queue.MarketingHandler // 非空时注册营销写脚本 worker
+	reference   queue.DramaReferenceHandler
 }
 
 func newRig(t *testing.T, db *gorm.DB, o rigOpts) *rig {
@@ -244,9 +245,10 @@ func newRig(t *testing.T, db *gorm.DB, o rigOpts) *rig {
 	rt, err := queue.New(queue.Config{
 		DB: sqlDB, Store: &dbStore{repo: repo, userLimit: o.userLimit}, Handler: h, Settings: settings, Repo: qrepo,
 		Enabled: true, HardCap: 16,
-		StepTrial: o.stepTrial,
-		Marketing: o.marketing,
-		Notifier:  o.notifier, AgentNotify: o.agentNotify, NotifyBackoff: 200 * time.Millisecond,
+		StepTrial:      o.stepTrial,
+		Marketing:      o.marketing,
+		DramaReference: o.reference,
+		Notifier:       o.notifier, AgentNotify: o.agentNotify, NotifyBackoff: 200 * time.Millisecond,
 		Version: "test", Hostname: "testhost", StopTimeout: 5 * time.Second,
 		HeartbeatEvery: 200 * time.Millisecond, SweepEvery: 300 * time.Millisecond, SettingsEvery: 100 * time.Millisecond,
 		FetchPollInterval: 200 * time.Millisecond,

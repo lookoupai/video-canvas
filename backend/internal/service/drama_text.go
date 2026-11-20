@@ -53,7 +53,7 @@ func (s *DramaService) dramaAttempt(ctx context.Context, j *model.DramaJob, snap
 	if step == "breakdown" {
 		vars["assets"] = cfg.KnownCast
 		delete(vars, "known_cast")
-	} else {
+	} else if _, adopted := vars["reference_adaptation"]; !adopted {
 		vars["known_cast"] = cfg.KnownCast
 	}
 	template, body := dramaTemplate(step, cfg.promptFor(j.Step, step))

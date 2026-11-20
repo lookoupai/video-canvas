@@ -7,6 +7,7 @@ import { useDramaList } from "@/hooks/use-drama-list";
 
 import { DramaGrid } from "./drama-grid";
 import { UploadCard } from "./upload-card";
+import { CreateReferenceDramaButton } from "./references/create";
 
 /** 首页只放最近的几部，其余去作品页的「个人短剧」看 */
 const PREVIEW_COUNT = 4;
@@ -25,6 +26,9 @@ export default function DramaListPage() {
           把剧本交给 <span className="text-beam">短剧工作室</span>
         </h1>
         <UploadCard />
+        <div className="mt-4 flex justify-center">
+          <CreateReferenceDramaButton />
+        </div>
       </section>
 
       <section className="mt-12 md:mt-14">
