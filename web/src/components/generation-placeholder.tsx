@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskIdTag } from "@/components/task-id-tag";
 import { cn } from "@/lib/utils";
+import { taskErrorMessage } from "@/utils/tasks/error-message";
 
 type PlaceholderBoxProps = {
   /** 框的尺寸、圆角等：画布节点按画幅给 style，首页格子给高度类，这里不定尺寸 */
@@ -117,7 +118,9 @@ export function FailedPlaceholder({
       role="alert"
     >
       <TriangleAlert className="size-4 shrink-0" />
-      <p className="line-clamp-3 break-words">{message}</p>
+      <p className="line-clamp-3 max-w-full [overflow-wrap:anywhere]">
+        {taskErrorMessage(message)}
+      </p>
       {refunded && <p className="text-muted-foreground">积分已退回</p>}
       <TaskIdTag id={taskRef} className="nodrag nowheel" />
       {onRetry && (

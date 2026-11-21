@@ -69,7 +69,7 @@ function AdaptTabs({ segment, format }: { segment: Segment; format: AdaptFormat 
   }, [actions, segment, setView]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+    <div className="flex min-w-0 flex-1 flex-col gap-2.5">
       <div className="flex flex-wrap items-center gap-2">
         <div
           role="tablist"
@@ -122,7 +122,7 @@ function AdaptTabs({ segment, format }: { segment: Segment; format: AdaptFormat 
       {view === "source" ? (
         <AutosavedPrompt segment={segment} kind="source" />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
           {error && (
             <Bar tone="destructive" icon={<CircleX />} action="重试" onAction={() => void run()}>
               {error}

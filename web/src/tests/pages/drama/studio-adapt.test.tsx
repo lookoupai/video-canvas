@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import type { Segment } from "@/api/drama/type";
+import { Editor } from "@/pages/drama/studio/editor";
 import { GenerateControls } from "@/pages/drama/studio/generate-controls";
 import { PromptPane } from "@/pages/drama/studio/prompt-pane";
 import { StudioContext, type Studio } from "@/pages/drama/studio/use-studio";
@@ -159,5 +160,38 @@ describe("片场：生成按钮的拦截原因", () => {
       <GenerateControls />,
     );
     expect(html).toContain("正在转写");
+  });
+});
+
+describe("片场：历史生成失败提示", () => {
+  test("历史额度不足显示在提示词之前，不把渠道 JSON 放进编辑区域", () => {
+    const error = JSON.stringify({
+      code: "fail_to_fetch_task",
+      message: JSON.stringify({
+        code: "insufficient_user_quota",
+        message: "Insufficient user quota, remaining: ＄0.000000",
+      }),
+    });
+    const selected = seg({
+      status: "error",
+      takes: [{ taskId: "8", status: "failed", asset: null, errorMessage: error, createdAt: "" }],
+    });
+    const html = render(studio({ selected, plan: null }), <Editor />);
+    expect(html).toContain("上次生成失败");
+    expect(html).toContain("模型渠道余额不足，请补充渠道额度或更换渠道。");
+    expect(html).not.toContain("fail_to_fetch_task");
+    expect(html.indexOf("上次生成失败")).toBeLessThan(html.indexOf("原稿 · Seedance"));
+  });
+
+  test("重新生成中不显示旧失败提示", () => {
+    const selected = seg({
+      status: "running",
+      takes: [
+        { taskId: "8", status: "failed", asset: null, errorMessage: "旧失败", createdAt: "" },
+      ],
+    });
+    const html = render(studio({ selected, plan: null }), <Editor />);
+    expect(html).not.toContain("上次生成失败");
+    expect(html).not.toContain("旧失败");
   });
 });
