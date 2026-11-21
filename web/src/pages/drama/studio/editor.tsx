@@ -5,6 +5,7 @@ import { StatusPill } from "@/components/drama/status-pill";
 import { Button } from "@/components/ui/button";
 import { DURATION, EASE_OUT } from "@/lib/motion";
 import { hasVideo, latestError } from "@/utils/drama/segments";
+import { taskErrorMessage } from "@/utils/tasks/error-message";
 
 import { PromptPane } from "./prompt-pane";
 import { RefsBar } from "./refs-bar";
@@ -12,7 +13,7 @@ import { RemakePanel } from "./remake-panel";
 import { useStudio } from "./use-studio";
 
 /** 右侧检查器：撑满所在分栏（宽度由用户拖动），自己滚动 */
-const INSPECTOR = "bg-card h-full w-full min-w-0 overflow-y-auto";
+const INSPECTOR = "bg-card h-full w-full min-w-0 overflow-x-hidden overflow-y-auto";
 
 /** 编辑区标题「第 N 集 · 第 M 段」：M 是当前选中的片段序号（和底部片段条格子上的序号一致），随选中片段变 */
 export function EditorHeading({ no, seq }: { no: number; seq: number }) {
@@ -51,7 +52,7 @@ export function Editor() {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: DURATION.base, ease: EASE_OUT }}
-        className="flex h-full flex-col gap-4 px-4 pt-4 pb-4"
+        className="flex min-h-full flex-col gap-4 px-4 pt-4 pb-4"
       >
         <div className="flex items-baseline gap-2">
           <EditorHeading no={no} seq={selected.seq} />
@@ -81,17 +82,21 @@ export function Editor() {
 
         <RemakePanel />
 
-        <PromptPane key={selected.id} segment={selected} />
-
         {error && (
           <div
-            role="alert"
-            className="bg-destructive/8 border-destructive/25 flex items-start gap-2 rounded-lg border px-3 py-2 text-sm"
+            role="status"
+            aria-label="上次生成失败"
+            className="bg-destructive/8 border-destructive/25 flex shrink-0 items-start gap-2 rounded-lg border px-3 py-2 text-sm"
           >
             <CircleX className="text-destructive mt-0.5 size-4 shrink-0" />
-            <div>{error}</div>
+            <div className="min-w-0 [overflow-wrap:anywhere]">
+              <p className="font-medium">上次生成失败</p>
+              <p className="text-muted-foreground mt-1">{taskErrorMessage(error)}</p>
+            </div>
           </div>
         )}
+
+        <PromptPane key={selected.id} segment={selected} />
       </motion.div>
     </section>
   );

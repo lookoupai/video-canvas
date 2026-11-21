@@ -43,6 +43,34 @@ describe("PendingPlaceholder", () => {
 });
 
 describe("FailedPlaceholder", () => {
+  test("将嵌套渠道 JSON 的额度错误转换为中文，不显示原始协议正文", () => {
+    const message = JSON.stringify({
+      code: "fail_to_fetch_task",
+      message: JSON.stringify({
+        code: "insufficient_user_quota",
+        message: "Insufficient user quota, remaining: ＄0.000000",
+      }),
+      data: null,
+    });
+    const out = renderToStaticMarkup(<FailedPlaceholder message={message} />);
+    expect(out).toContain("模型渠道余额不足，请补充渠道额度或更换渠道。");
+    expect(out).not.toContain("fail_to_fetch_task");
+    expect(out).not.toContain("insufficient_user_quota");
+  });
+
+  test("提取 JSON 内的可读失败原因，无可读原因时显示通用提示", () => {
+    const readable = renderToStaticMarkup(
+      <FailedPlaceholder message={JSON.stringify({ error: { message: "参考视频过长" } })} />,
+    );
+    expect(readable).toContain("参考视频过长");
+    expect(readable).not.toContain("&quot;error&quot;");
+    for (const message of ['{"code":"bad_gateway"}', '{"message":', '{"message":42}']) {
+      const out = renderToStaticMarkup(<FailedPlaceholder message={message} />);
+      expect(out).toContain("生成失败，请稍后重试或联系管理员。");
+      expect(out).not.toContain("&quot;");
+    }
+  });
+
   test("显示失败原因，标记为告警", () => {
     const out = renderToStaticMarkup(<FailedPlaceholder message="上游返回错误" />);
     expect(out).toContain("上游返回错误");
