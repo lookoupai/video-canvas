@@ -25,6 +25,24 @@ type DramaReferenceTx interface {
 	FinishAdoption(context.Context, *model.DramaReferenceAdoption) error
 	// RememberAdoptionKey 在提交键锁和项目锁内登记指向同一采用的新键。
 	RememberAdoptionKey(context.Context, *model.DramaReferenceAdoption) error
+	// DraftForApply 按用户、项目、参考和草稿 ID 查询草稿，按需锁行。
+	DraftForApply(context.Context, uint64, uint64, uint64, uint64, bool) (*model.DramaReferenceDraft, error)
+	// SavePlanDraft 保存已采用状态及批准时的草稿修订。
+	SavePlanDraft(context.Context, *model.DramaReferenceDraft) error
+	// DraftApplicationByKey 按用户和操作键查询 apply 回执，不存在返回 ErrNotFound。
+	DraftApplicationByKey(context.Context, uint64, string) (*model.DramaReferenceDraftApplication, error)
+	// DraftApplicationByID 按用户、项目和回执 ID 查询 apply 回执，不存在返回 ErrNotFound。
+	DraftApplicationByID(context.Context, uint64, uint64, uint64) (*model.DramaReferenceDraftApplication, error)
+	// DraftApplicationForDraft 按用户与草稿修订查询唯一采用回执，不存在返回 ErrNotFound。
+	DraftApplicationForDraft(context.Context, uint64, uint64, int64) (*model.DramaReferenceDraftApplication, error)
+	// SaveDraftApplication 创建 apply 回执。
+	SaveDraftApplication(context.Context, *model.DramaReferenceDraftApplication) error
+	// DraftGenerationByKey 按用户和批次键查询生成回执，不存在返回 ErrNotFound。
+	DraftGenerationByKey(context.Context, uint64, string) (*model.DramaReferenceDraftGeneration, error)
+	// DraftGeneration 按用户、项目和生成回执 ID 查询。
+	DraftGeneration(context.Context, uint64, uint64, uint64, bool) (*model.DramaReferenceDraftGeneration, error)
+	// SaveDraftGeneration 创建或在行锁保护下更新批次回执。
+	SaveDraftGeneration(context.Context, *model.DramaReferenceDraftGeneration) error
 	Project(context.Context, uint64, uint64, bool) (*model.DramaProject, error)
 	CreateProject(context.Context, *model.DramaProject) error
 	LockCreateKey(context.Context, uint64, string) error
@@ -42,6 +60,87 @@ type DramaReferenceTx interface {
 	SaveRole(context.Context, *model.DramaReferenceRole) error
 	Canvas(context.Context, uint64, uint64) (*model.CanvasProject, error)
 	Enqueue(context.Context, uint64, uint64, uint64, int) error
+}
+
+// DraftForApply 按用户、项目、参考和 ID 查询草稿并按需加锁，缺失返回 ErrNotFound。
+func (r *DramaReferenceRepository) DraftForApply(ctx context.Context, u, p, ref, id uint64, lock bool) (*model.DramaReferenceDraft, error) {
+	var row model.DramaReferenceDraft
+	q := r.db.WithContext(ctx).Where("user_id = ? AND drama_id = ? AND reference_id = ? AND id = ?", u, p, ref, id)
+	if lock {
+		q = q.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	err := q.Take(&row).Error
+	return &row, translate(err)
+}
+
+// SavePlanDraft 在项目锁内保存本人已采用草稿。
+func (r *DramaReferenceRepository) SavePlanDraft(ctx context.Context, row *model.DramaReferenceDraft) error {
+	result := r.db.WithContext(ctx).Model(row).Where("user_id = ? AND drama_id = ? AND reference_id = ? AND id = ?", row.UserID, row.DramaID, row.ReferenceID, row.ID).
+		Select("revision", "status", "source", "session_id", "run_id", "updated_at").Updates(row)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DraftApplicationByKey 按用户和幂等键查询采用回执，缺失返回 ErrNotFound。
+func (r *DramaReferenceRepository) DraftApplicationByKey(ctx context.Context, u uint64, key string) (*model.DramaReferenceDraftApplication, error) {
+	var row model.DramaReferenceDraftApplication
+	err := r.db.WithContext(ctx).Where("user_id = ? AND request_key = ?", u, key).Take(&row).Error
+	return &row, translate(err)
+}
+
+// DraftApplicationByID 按用户项目和回执 ID 查询采用回执，缺失返回 ErrNotFound。
+func (r *DramaReferenceRepository) DraftApplicationByID(ctx context.Context, u, p, id uint64) (*model.DramaReferenceDraftApplication, error) {
+	var row model.DramaReferenceDraftApplication
+	err := r.db.WithContext(ctx).Where("user_id = ? AND drama_id = ? AND id = ?", u, p, id).Take(&row).Error
+	return &row, translate(err)
+}
+
+// SaveDraftApplication 创建不可变草稿采用回执。
+func (r *DramaReferenceRepository) SaveDraftApplication(ctx context.Context, row *model.DramaReferenceDraftApplication) error {
+	if row.ID == 0 {
+		return r.db.WithContext(ctx).Create(row).Error
+	}
+	return r.db.WithContext(ctx).Model(row).Where("user_id = ? AND drama_id = ? AND id = ?", row.UserID, row.DramaID, row.ID).
+		Update("response", row.Response).Error
+}
+
+// DraftApplicationForDraft 按用户与草稿修订查询唯一采用回执，缺失返回 ErrNotFound。
+func (r *DramaReferenceRepository) DraftApplicationForDraft(ctx context.Context, u, draft uint64, revision int64) (*model.DramaReferenceDraftApplication, error) {
+	var row model.DramaReferenceDraftApplication
+	err := r.db.WithContext(ctx).Where("user_id = ? AND draft_id = ? AND draft_revision = ?", u, draft, revision).Take(&row).Error
+	return &row, translate(err)
+}
+
+// DraftGenerationByKey 按用户和幂等键查询生成批次，缺失返回 ErrNotFound。
+func (r *DramaReferenceRepository) DraftGenerationByKey(ctx context.Context, u uint64, key string) (*model.DramaReferenceDraftGeneration, error) {
+	var row model.DramaReferenceDraftGeneration
+	err := r.db.WithContext(ctx).Where("user_id = ? AND request_key = ?", u, key).Take(&row).Error
+	return &row, translate(err)
+}
+
+// DraftGeneration 按用户、项目和回执 ID 查询生成批次，缺失返回 ErrNotFound。
+func (r *DramaReferenceRepository) DraftGeneration(ctx context.Context, u, p, id uint64, lock bool) (*model.DramaReferenceDraftGeneration, error) {
+	var row model.DramaReferenceDraftGeneration
+	q := r.db.WithContext(ctx).Where("user_id = ? AND drama_id = ? AND id = ?", u, p, id)
+	if lock {
+		q = q.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	err := q.Take(&row).Error
+	return &row, translate(err)
+}
+
+// SaveDraftGeneration 创建批次回执或更新在事务中加锁的进度结果。
+func (r *DramaReferenceRepository) SaveDraftGeneration(ctx context.Context, row *model.DramaReferenceDraftGeneration) error {
+	if row.ID == 0 {
+		return r.db.WithContext(ctx).Create(row).Error
+	}
+	return r.db.WithContext(ctx).Model(row).Where("user_id = ? AND drama_id = ? AND id = ?", row.UserID, row.DramaID, row.ID).
+		Select("response", "status", "updated_at").Updates(row).Error
 }
 
 // DramaReferenceEnqueuer 把参考集处理与输入记录在同一事务提交。

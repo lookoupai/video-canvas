@@ -333,7 +333,15 @@ test("重放策略：读工具和 Go 已经幂等的写工具可重放；会写�
   }
   for (const n of ["canvas_capture_frame", "something_new"]) assert.equal(replayOf(n), "unsafe", n);
   // 审批类和计划：宿主按调用 id 幂等，可重放
-  for (const n of ["plan_update", "show_card", "generate_media", "canvas_delete", "ask_user"])
+  for (const n of [
+    "plan_update",
+    "show_card",
+    "generate_media",
+    "canvas_delete",
+    "ask_user",
+    "drama_reference_apply",
+    "drama_generate_segments",
+  ])
     assert.equal(replayOf(n), "safe", n);
 });
 

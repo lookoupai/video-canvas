@@ -33,6 +33,44 @@ type AgentDramaSegments interface {
 	Update(context.Context, uint64, uint64, *model.UpdateDramaSegmentReq) (*model.DramaSegmentView, error)
 }
 
+// AgentDramaReferences 提供当前项目的参考集文档和角色范围。
+type AgentDramaReferences interface {
+	// Collection 返回当前用户项目的参考集、角色和可绑定目标。
+	Collection(context.Context, uint64, uint64) (*model.DramaReferenceCollection, error)
+	// GetEpisode 返回当前或指定历史修订的参考集。
+	GetEpisode(context.Context, uint64, uint64, uint64, int64) (*model.DramaReferenceView, error)
+}
+
+// AgentDramaPreparations 提供受项目上下文约束的持久媒体准备与证据读取。
+type AgentDramaPreparations interface {
+	// Create 冻结参考修订并提交媒体准备任务。
+	Create(context.Context, uint64, uint64, uint64, *model.CreateDramaReferencePreparationReq) (*model.DramaReferencePreparationView, error)
+	// Get 查询准备摘要。
+	Get(context.Context, uint64, uint64, uint64, uint64) (*model.DramaReferencePreparationView, error)
+	// Frames 分页读取指定准备的系统帧。
+	Frames(context.Context, uint64, uint64, uint64, uint64, *model.ListDramaReferenceFramesReq) (*model.DramaReferenceFrameList, error)
+}
+
+// AgentDramaDrafts 提供可恢复的分析草稿。
+type AgentDramaDrafts interface {
+	// CreateForAgent 用可信运行上下文创建草稿。
+	CreateForAgent(context.Context, uint64, uint64, uint64, uint64, uint64, *model.CreateDramaReferenceDraftReq) (*model.DramaReferenceDraftView, error)
+	// Get 读取当前用户项目下的草稿。
+	Get(context.Context, uint64, uint64, uint64, uint64) (*model.DramaReferenceDraftView, error)
+	// List 分页读取当前用户参考集的草稿。
+	List(context.Context, uint64, uint64, uint64, *model.ListDramaReferenceDraftsReq) (*model.DramaReferenceDraftList, error)
+	// UpdateForAgent 按草稿修订保存 Agent 生成的内容。
+	UpdateForAgent(context.Context, uint64, uint64, uint64, uint64, uint64, uint64, *model.UpdateDramaReferenceDraftReq) (*model.DramaReferenceDraftView, error)
+}
+
+// AgentDramaPlans validates approved reference plans and executes their writes.
+type AgentDramaPlans interface {
+	Quote(context.Context, uint64, uint64, uint64, uint64, *model.QuoteDramaReferenceDraftReq) (*model.DramaReferencePlan, error)
+	ApplyForAgent(context.Context, uint64, uint64, uint64, uint64, uint64, uint64, *model.ApplyDramaReferenceDraftReq) (*model.DramaReferenceApplyResponse, error)
+	CheckGenerate(context.Context, uint64, uint64, uint64, uint64, *model.DramaReferenceGenerateReq) (*model.DramaReferencePlan, error)
+	Generate(context.Context, uint64, uint64, uint64, uint64, *model.DramaReferenceGenerateReq) (*model.DramaReferenceGenerateResponse, error)
+}
+
 // CheckCanvasMode 校验会话模式及画布归属；drama仅允许绑定存活短剧的专属画布。
 func (b *AgentBridge) CheckCanvasMode(ctx context.Context, userID, canvasID uint64, mode string) error {
 	// 1. 保持旧模式的归属校验和错误语义；未知模式不传给Agent服务。

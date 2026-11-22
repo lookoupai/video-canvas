@@ -143,6 +143,8 @@ export type ApprovalKind =
   | "drama_update_episode"
   | "drama_update_segment"
   | "drama_run_job"
+  | "drama_reference_apply"
+  | "drama_generate_segments"
   | "admin_change"
   | "admin_secret"
   | "admin_test_run";

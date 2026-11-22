@@ -1,5 +1,7 @@
 import { submitConversationRecord } from "@/api/conversation";
 import { generateBoard, generateSegment } from "@/api/drama";
+import { generateDramaReferenceDraft } from "@/api/drama/reference";
+import type { ReferenceDraftGenerateRequest } from "@/api/drama/reference-type";
 import type { BoardGenerateBody, SegmentGenerateBody } from "@/api/drama/type";
 import { generateRemakeShot } from "@/api/marketing/remake";
 import type {
@@ -13,7 +15,7 @@ import { useCreditsStore } from "@/store/credits";
 import { useTasksStore } from "@/store/tasks";
 import { cancelableTaskIds } from "@/utils/tasks/status";
 import { submitWithRetry } from "@/utils/tasks/submit";
-import { handleTaskView } from "@/utils/ws/task-events";
+import { handleTaskView, reconcileTaskIds } from "@/utils/ws/task-events";
 
 /**
  * 生成任务的统一入口：**所有入口（画布节点、首页对话、以后新增的任何地方）提交和取消任务都只经过这里**，
@@ -71,6 +73,24 @@ export async function submitSegmentTask(sid: string, body: SegmentGenerateBody):
   );
   acceptTasks([task]);
   return task;
+}
+
+/** 提交已采用的镜头计划，按同一业务键重试，并对账返回的实际任务。 */
+export async function submitReferenceDraftTasks(
+  projectId: string,
+  referenceId: string,
+  draftId: string,
+  request: ReferenceDraftGenerateRequest,
+) {
+  const result = await submitWithRetry(
+    (requestKey) =>
+      generateDramaReferenceDraft(projectId, referenceId, draftId, { ...request, requestKey }),
+    request.requestKey,
+  );
+  const taskIds = result.items.flatMap(({ taskId }) => (taskId ? [taskId] : []));
+  void reconcileTaskIds(taskIds);
+  void useCreditsStore.getState().refresh();
+  return result;
 }
 
 /**

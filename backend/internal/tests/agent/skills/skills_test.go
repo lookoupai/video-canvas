@@ -7,19 +7,18 @@ import (
 	"video-canvas/internal/agent/skills"
 )
 
-// 内置技能库目前是空的：技能都由后台导入。这几个用例锁住「空库也能正常工作」，
-// 以后再加内置技能时，这里的断言要跟着改。
-func TestEmptyBuiltInLibrary(t *testing.T) {
-	if got := skills.All(); len(got) != 0 {
-		t.Errorf("不应有内置技能: %+v", got)
+func TestReferenceShotAnalysisBuiltIn(t *testing.T) {
+	all := skills.All()
+	if len(all) != 1 || all[0].Name != "reference-shot-analysis" {
+		t.Fatalf("内置逐镜分析技能缺失或意外增加：%+v", all)
 	}
-	if got := skills.Search(""); len(got) != 0 {
-		t.Errorf("空库搜索应为空: %+v", got)
+	if got := skills.Search("参考剧集 关键帧"); len(got) != 1 || got[0].Name != "reference-shot-analysis" {
+		t.Errorf("应能按用途搜索内置技能：%+v", got)
 	}
-	if got := skills.Search("拆镜 关键帧"); len(got) != 0 {
-		t.Errorf("空库搜索应为空: %+v", got)
+	if skill, ok := skills.Read("reference-shot-analysis"); !ok || !strings.Contains(skill.Body, "单帧只能说明画面状态") {
+		t.Errorf("应能读取逐镜分析方法：%+v", skill)
 	}
-	for _, name := range []string{"script-breakdown", "keyframe-prompt", "../etc/passwd", ""} {
+	for _, name := range []string{"../etc/passwd", ""} {
 		if _, ok := skills.Read(name); ok {
 			t.Errorf("读 %q 应返回 false，不做任何路径解析", name)
 		}

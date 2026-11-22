@@ -9,6 +9,7 @@ import (
 
 	"video-canvas/internal/agent/canvasgraph"
 	"video-canvas/internal/agent/prompts"
+	"video-canvas/internal/agent/skills"
 	"video-canvas/internal/model"
 	"video-canvas/internal/pkg/errcode"
 	. "video-canvas/internal/service/agent"
@@ -42,8 +43,13 @@ func TestPrepareRun_ModelInfoFromTheSnapshot(t *testing.T) {
 	if m.ContextWindow != 200000 || m.MaxTokens != 8192 || !m.Vision {
 		t.Errorf("模型信息: %+v", m)
 	}
-	if got.SystemPrompt != prompts.SystemWithSkills("all", nil) {
-		t.Error("没有技能时系统提示词就是 System(mode)")
+	briefs := skills.All()
+	items := make([]prompts.SkillItem, 0, len(briefs))
+	for _, brief := range briefs {
+		items = append(items, prompts.SkillItem{Name: brief.Name, Description: brief.Description})
+	}
+	if got.SystemPrompt != prompts.SystemWithSkills("all", items) {
+		t.Error("运行提示词应包含内置技能目录")
 	}
 	if got.FirstMessage != "" {
 		t.Errorf("没传消息就没有第一条消息（续跑用）: %q", got.FirstMessage)

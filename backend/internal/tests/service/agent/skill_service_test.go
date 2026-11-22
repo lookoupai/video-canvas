@@ -315,15 +315,19 @@ func TestSkillService_ListAndRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	var imported int
+	var builtin int
 	for _, it := range page.List {
 		if it.Source == SkillSourceBuiltin {
-			t.Errorf("目前没有内置技能: %+v", it)
+			if it.Name != "reference-shot-analysis" {
+				t.Errorf("出现未知内置技能：%+v", it)
+			}
+			builtin++
 		} else {
 			imported++
 		}
 	}
-	if imported != 1 || page.Total != 1 {
-		t.Errorf("只有导入的 1 个，total 1: %d %d", imported, page.Total)
+	if builtin != 1 || imported != 1 || page.Total != 2 {
+		t.Errorf("应有内置和导入技能各一个，total 2: builtin=%d imported=%d total=%d", builtin, imported, page.Total)
 	}
 	req := func(q, status string, p, size int) *model.ListSkillReq {
 		return &model.ListSkillReq{AdminListReq: model.AdminListReq{Q: q, Page: p, PageSize: size}, Status: status}
@@ -331,8 +335,8 @@ func TestSkillService_ListAndRead(t *testing.T) {
 	if got, _ := e.svc.List(ctx, req("", "disabled", 0, 0)); len(got.List) != 1 || got.List[0].Name != "demo" || got.Total != 1 {
 		t.Errorf("status=disabled: %+v", got)
 	}
-	if got, _ := e.svc.List(ctx, req("", "builtin", 0, 0)); got.Total != 0 || got.List == nil {
-		t.Errorf("status=builtin 没有内置技能，要返回空切片: %+v", got)
+	if got, _ := e.svc.List(ctx, req("", "builtin", 0, 0)); got.Total != 1 || len(got.List) != 1 || got.List[0].Name != "reference-shot-analysis" {
+		t.Errorf("status=builtin 应返回逐镜分析技能：%+v", got)
 	}
 	if got, _ := e.svc.List(ctx, req("demo", "", 0, 0)); len(got.List) != 1 || got.List[0].Name != "demo" {
 		t.Errorf("q 按名称过滤: %+v", got)
@@ -359,14 +363,14 @@ func TestSkillService_ListAndRead(t *testing.T) {
 	_, _ = e.svc.SetEnabled(ctx, 1, "demo", true)
 	t.Run("启用后出现在目录和搜索里", func(t *testing.T) {
 		cat, _ := e.svc.Enabled(ctx)
-		if len(cat) != 1 || cat[0].Name != "demo" {
-			t.Errorf("目录只有启用的导入技能: %+v", cat)
+		if len(cat) != 2 || cat[0].Name != "reference-shot-analysis" || cat[1].Name != "demo" {
+			t.Errorf("目录应含内置和启用的导入技能：%+v", cat)
 		}
 		if res, _ := e.svc.Search(ctx, "方法"); len(res) == 0 {
 			t.Error("按说明能搜到")
 		}
-		if res, _ := e.svc.Search(ctx, "拆镜"); len(res) != 0 {
-			t.Errorf("已经没有内置技能，搜不到它们: %+v", res)
+		if res, _ := e.svc.Search(ctx, "关键帧"); len(res) != 1 || res[0].Name != "reference-shot-analysis" {
+			t.Errorf("内置技能应能按关键帧搜索：%+v", res)
 		}
 	})
 
@@ -468,10 +472,10 @@ func TestSkillService_ListPaging(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Total != 5 || len(got.List) != 2 || got.Page != 2 || got.PageSize != 2 {
-		t.Errorf("分页第 2 页有 2 条，total 仍是 5: %+v", got)
+	if got.Total != 6 || len(got.List) != 2 || got.Page != 2 || got.PageSize != 2 {
+		t.Errorf("分页第 2 页有 2 条，total 包含内置与导入技能: %+v", got)
 	}
-	if got, _ = e.svc.List(ctx, &model.ListSkillReq{AdminListReq: model.AdminListReq{Page: 3, PageSize: 2}}); len(got.List) != 1 {
-		t.Errorf("最后一页剩 1 条: %+v", got)
+	if got, _ = e.svc.List(ctx, &model.ListSkillReq{AdminListReq: model.AdminListReq{Page: 3, PageSize: 2}}); len(got.List) != 2 {
+		t.Errorf("最后一页应返回最后两个技能: %+v", got)
 	}
 }

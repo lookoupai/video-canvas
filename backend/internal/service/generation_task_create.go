@@ -69,6 +69,9 @@ func (s *GenerationTaskService) Create(ctx context.Context, userID uint64, idemp
 		return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("node_ids 的数量（%d）必须等于生成数量（%d）", len(nodes), n))
 	}
 	one := max(modelcfg.Quote(snap.Model.Pricing, caps, modelcfg.SpecFromInput(input, caps.System)), 0)
+	if err := s.validateReferenceTaskQuote(ctx, userID, snap, one, input); err != nil {
+		return nil, err
+	}
 	if name := modelcfg.FanoutParam(caps); name != "" {
 		delete(input, name)
 	}

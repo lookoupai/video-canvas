@@ -18,8 +18,16 @@ test("短剧模式：普通画布不能创建，会话不落库；短剧画布�
     const created = await h.call("POST", `/canvas/${enc("8")}/agent/sessions`, { mode: "drama" });
     assert.equal(created.status, 200);
     assert.equal(created.body.data.mode, "drama");
+    const page_context = {
+      kind: "drama_reference",
+      project_id: "91",
+      reference_id: "92",
+      reference_revision: 3,
+      selected_shot_ids: ["shot-2"],
+    };
     const started = await h.call("POST", `/agent/sessions/${created.body.data.id}/runs`, {
       message: "读短剧",
+      page_context,
     });
     assert.equal(started.status, 202);
     assert.equal(started.body.data.mode, "drama");
@@ -28,6 +36,20 @@ test("短剧模式：普通画布不能创建，会话不落库；短剧画布�
       (r) => r.path.endsWith("/canvases/check") && r.body.canvas_id === "8",
     );
     assert.ok(checked.every((r) => r.body.mode === "drama"));
+    assert.deepEqual(
+      e.go.seen.find((r) => r.path.endsWith("/runs/prepare"))?.body.page_context,
+      page_context,
+    );
+    const sessionId = codec.decodeDecimal(created.body.data.id);
+    assert.ok(sessionId);
+    const event = e.store.listEvents(sessionId, 0, 30).find((row) => row.type === "message.user");
+    assert.ok(event);
+    assert.deepEqual((event.payload as { page_context?: unknown }).page_context, page_context);
+    const invalid = await h.call("POST", `/agent/sessions/${created.body.data.id}/runs`, {
+      message: "范围无效",
+      page_context: { ...page_context, extra: "不应接收" },
+    });
+    assert.equal(invalid.status, 400);
   }));
 
 test("运行切换到 drama 仍检查画布，拒绝时不创建运行也不更改会话模式", () =>
@@ -46,6 +68,8 @@ for (const name of [
   "drama_update_episode",
   "drama_update_segment",
   "drama_run_job",
+  "drama_reference_apply",
+  "drama_generate_segments",
 ]) {
   for (const decision of ["approve", "reject"] as const) {
     test(`${name}：${decision} 沿现有审批暂停和恢复，批准前不执行写入`, () => {

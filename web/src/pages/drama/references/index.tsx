@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
-import { ArrowDown, ArrowLeft, ArrowUp, RefreshCw } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Bot, RefreshCw } from "lucide-react";
 import { uploadAsset } from "@/api/asset";
 import type { AssetDto } from "@/api/asset/type";
 import {
@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { ReferenceEditor, type ReferenceDraft } from "./editor";
 import { ReferenceRoles } from "./roles";
 import { ReferenceAdopt } from "./adopt";
+import { ReferenceAssistantPane } from "./assistant-pane";
+import { ReferenceDraftSection } from "./draft-section";
 
 const STATUS = { idle: "待导入", queued: "处理中", ready: "可校订", failed: "处理失败" };
 
@@ -107,6 +109,11 @@ export function ReferenceWorkspace({ id }: { id: string }) {
   const [drafts, setDrafts] = useState<Record<string, ReferenceDraft>>({});
   const [historical, setHistorical] = useState<DramaReference | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [shotSelectionByRevision, setShotSelectionByRevision] = useState<Record<string, string[]>>(
+    {},
+  );
+  const [analysisVersion, setAnalysisVersion] = useState(0);
   const serial = useRef(0),
     historySerial = useRef(0),
     lock = useRef(false),
@@ -126,6 +133,10 @@ export function ReferenceWorkspace({ id }: { id: string }) {
       if (mine === serial.current) setFailed(true);
     }
   }, [id]);
+  const refreshAnalysis = useCallback(async () => {
+    setAnalysisVersion((version) => version + 1);
+    await reload();
+  }, [reload]);
   const invalidatePending = useCallback(() => {
     serial.current++;
     historySerial.current++;
@@ -141,6 +152,23 @@ export function ReferenceWorkspace({ id }: { id: string }) {
     return () => clearInterval(timer);
   }, [queued, reload]);
   const current = data?.episodes.find((e) => e.id === selected) ?? null;
+  const currentShotIDs = current?.document?.shots.map((shot) => shot.id) ?? [];
+  const shotSelectionKey = current ? `${current.id}:${current.revision}` : "";
+  const selectedShotIDs = current
+    ? (shotSelectionByRevision[shotSelectionKey] ?? currentShotIDs)
+    : [];
+  const updateShotSelection = (shotID: string, checked: boolean) => {
+    setShotSelectionByRevision((previous) => {
+      const selectedIDs = previous[shotSelectionKey] ?? currentShotIDs;
+      const nextIDs = checked
+        ? [...selectedIDs, shotID]
+        : selectedIDs.filter((id) => id !== shotID);
+      return {
+        ...previous,
+        [shotSelectionKey]: currentShotIDs.filter((id) => nextIDs.includes(id)),
+      };
+    });
+  };
   const episode = historical ?? current;
   const draftKey = episode ? `${episode.id}:${episode.revision}` : "";
   const draft = episode?.document
@@ -243,6 +271,16 @@ export function ReferenceWorkspace({ id }: { id: string }) {
         >
           <RefreshCw />
         </Button>
+        <Button
+          variant={assistantOpen ? "secondary" : "outline"}
+          size="sm"
+          aria-expanded={assistantOpen}
+          aria-controls="reference-assistant"
+          onClick={() => setAssistantOpen((open) => !open)}
+        >
+          <Bot />
+          助手分析
+        </Button>
       </header>
       <main className="mx-auto grid max-w-360 gap-5">
         {failed && (
@@ -255,179 +293,209 @@ export function ReferenceWorkspace({ id }: { id: string }) {
         )}
         {!data && !failed && <p role="status">正在读取参考剧集…</p>}
         {data && (
-          <>
-            <ReferenceRoles id={id} data={data} onSaved={reload} />
-            <AddEpisode id={id} onAdded={reload} />
-            <div className="grid items-start gap-6 md:grid-cols-[12rem_minmax(0,1fr)]">
-              <nav aria-label="参考集序" className="grid gap-1">
-                {data.episodes.map((ep) => (
-                  <div
-                    key={ep.id}
-                    className={cn("rounded-xl p-2", ep.id === selected && "bg-chrome-hover")}
-                  >
-                    <button
-                      type="button"
-                      className="w-full min-w-0 truncate py-2 text-left text-sm"
-                      aria-pressed={ep.id === selected}
-                      onClick={() => {
-                        historySerial.current++;
-                        setHistorical(null);
-                        setHistoryLoading(false);
-                        setSelected(ep.id);
-                        setActionError(false);
-                      }}
+          <div
+            className={cn(
+              "grid min-w-0 gap-5",
+              assistantOpen && "xl:grid-cols-[minmax(0,1fr)_24rem]",
+            )}
+          >
+            <section className="grid min-w-0 gap-5">
+              <ReferenceRoles id={id} data={data} onSaved={reload} />
+              <AddEpisode id={id} onAdded={reload} />
+              <div className="grid min-w-0 items-start gap-6 md:grid-cols-[12rem_minmax(0,1fr)]">
+                <nav aria-label="参考集序" className="grid gap-1">
+                  {data.episodes.map((ep) => (
+                    <div
+                      key={ep.id}
+                      className={cn("rounded-xl p-2", ep.id === selected && "bg-chrome-hover")}
                     >
-                      第 {ep.seq} 集 · {ep.title}
-                    </button>
-                    <span className="text-muted-foreground text-xs">{STATUS[ep.status]}</span>
-                  </div>
-                ))}
-                {data.episodes.length === 0 && (
-                  <p className="text-muted-foreground py-4 text-sm">暂无参考剧集</p>
-                )}
-              </nav>
-              <section className="min-w-0 space-y-4">
-                {current && (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        aria-label="上移参考集"
-                        disabled={busy || current.seq === 1}
-                        onClick={() => void move(-1)}
-                      >
-                        <ArrowUp />
-                      </Button>
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        aria-label="下移参考集"
-                        disabled={busy || current.seq === data.episodes.length}
-                        onClick={() => void move(1)}
-                      >
-                        <ArrowDown />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busy || current.status === "queued"}
-                        onClick={() => file.current?.click()}
-                      >
-                        导入拆片包
-                      </Button>
-                      <input
-                        type="file"
-                        ref={file}
-                        hidden
-                        accept=".json,.zip,application/json,application/zip"
-                        aria-label="本集拆片包"
-                        onChange={(e) => {
-                          const selectedFile = e.target.files?.[0];
-                          e.target.value = "";
-                          if (selectedFile)
-                            void action(async () => {
-                              apply(
-                                await importDramaReference(
-                                  id,
-                                  current.id,
-                                  current.revision,
-                                  selectedFile,
-                                ),
-                              );
-                              setHistorical(null);
-                            });
+                      <button
+                        type="button"
+                        className="w-full min-w-0 truncate py-2 text-left text-sm"
+                        aria-pressed={ep.id === selected}
+                        onClick={() => {
+                          historySerial.current++;
+                          setHistorical(null);
+                          setHistoryLoading(false);
+                          setSelected(ep.id);
+                          setActionError(false);
                         }}
-                      />
-                      <Button
-                        size="sm"
-                        disabled={busy || current.status === "queued" || !data.analyzerAvailable}
-                        title={
-                          !data.analyzerAvailable
-                            ? "当前服务器未安装 rea-video，可导入拆片包"
-                            : undefined
-                        }
-                        onClick={() => void analyze()}
                       >
-                        {current.status === "idle" ? "分析本集" : "重新分析本集"}
-                      </Button>
-                      {current.versions.length > 0 && (
-                        <select
-                          aria-label="查看拆解修订"
-                          className="bg-chrome-hover ml-auto rounded-lg px-3 py-2 text-sm"
-                          value={historical?.revision ?? 0}
-                          onChange={(e) => void history(Number(e.target.value))}
-                        >
-                          <option value={0}>当前修订 v{current.revision}</option>
-                          {current.versions
-                            .filter((v) => v.revision !== current.revision)
-                            .map((v) => (
-                              <option value={v.revision} key={v.revision}>
-                                v{v.revision} · {v.method}
-                              </option>
-                            ))}
-                        </select>
-                      )}
+                        第 {ep.seq} 集 · {ep.title}
+                      </button>
+                      <span className="text-muted-foreground text-xs">{STATUS[ep.status]}</span>
                     </div>
-                    {current.document && (
-                      <ReferenceAdopt
-                        key={`${current.id}:${current.revision}`}
+                  ))}
+                  {data.episodes.length === 0 && (
+                    <p className="text-muted-foreground py-4 text-sm">暂无参考剧集</p>
+                  )}
+                </nav>
+                <section className="min-w-0 space-y-4">
+                  {current && (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label="上移参考集"
+                          disabled={busy || current.seq === 1}
+                          onClick={() => void move(-1)}
+                        >
+                          <ArrowUp />
+                        </Button>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label="下移参考集"
+                          disabled={busy || current.seq === data.episodes.length}
+                          onClick={() => void move(1)}
+                        >
+                          <ArrowDown />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy || current.status === "queued"}
+                          onClick={() => file.current?.click()}
+                        >
+                          导入拆片包
+                        </Button>
+                        <input
+                          type="file"
+                          ref={file}
+                          hidden
+                          accept=".json,.zip,application/json,application/zip"
+                          aria-label="本集拆片包"
+                          onChange={(e) => {
+                            const selectedFile = e.target.files?.[0];
+                            e.target.value = "";
+                            if (selectedFile)
+                              void action(async () => {
+                                apply(
+                                  await importDramaReference(
+                                    id,
+                                    current.id,
+                                    current.revision,
+                                    selectedFile,
+                                  ),
+                                );
+                                setHistorical(null);
+                              });
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          disabled={busy || current.status === "queued" || !data.analyzerAvailable}
+                          title={
+                            !data.analyzerAvailable
+                              ? "当前服务器未安装 rea-video，可导入拆片包"
+                              : undefined
+                          }
+                          onClick={() => void analyze()}
+                        >
+                          {current.status === "idle" ? "分析本集" : "重新分析本集"}
+                        </Button>
+                        {current.versions.length > 0 && (
+                          <select
+                            aria-label="查看拆解修订"
+                            className="bg-chrome-hover ml-auto rounded-lg px-3 py-2 text-sm"
+                            value={historical?.revision ?? 0}
+                            onChange={(e) => void history(Number(e.target.value))}
+                          >
+                            <option value={0}>当前修订 v{current.revision}</option>
+                            {current.versions
+                              .filter((v) => v.revision !== current.revision)
+                              .map((v) => (
+                                <option value={v.revision} key={v.revision}>
+                                  v{v.revision} · {v.method}
+                                </option>
+                              ))}
+                          </select>
+                        )}
+                      </div>
+                      {current.document && (
+                        <ReferenceAdopt
+                          key={`${current.id}:${current.revision}`}
+                          id={id}
+                          episode={current}
+                          disabled={
+                            busy ||
+                            !!historical ||
+                            historyLoading ||
+                            current.status === "queued" ||
+                            !!drafts[`${current.id}:${current.revision}`]
+                          }
+                        />
+                      )}
+                      {current.status === "queued" && (
+                        <p role="status">本集正在处理中，其他集可继续校订</p>
+                      )}
+                      {current.status === "failed" && (
+                        <p role="status" className="text-destructive">
+                          {current.error || "本集处理失败"}
+                        </p>
+                      )}
+                      {actionError && (
+                        <p role="status" className="text-destructive">
+                          操作未保存，请核对修订并重试
+                        </p>
+                      )}
+                      {historical && (
+                        <p role="status" className="text-muted-foreground text-sm">
+                          正在回看历史修订 v{historical.revision}
+                        </p>
+                      )}
+                      {episode?.method === "rea-video-local" && (
+                        <p className="text-muted-foreground text-sm">
+                          本地切镜分析，角色和对白待校订
+                        </p>
+                      )}
+                      {historyLoading ? (
+                        <p role="status">正在读取历史修订…</p>
+                      ) : episode && draft ? (
+                        <ReferenceEditor
+                          key={episode.id}
+                          episode={episode}
+                          draft={draft}
+                          roles={data.roles}
+                          disabled={busy || !!historical || current.status === "queued"}
+                          onChange={(next) => setDrafts((old) => ({ ...old, [draftKey]: next }))}
+                          onSave={() => void save()}
+                        />
+                      ) : (
+                        current.status !== "queued" && (
+                          <p className="text-muted-foreground py-8">
+                            导入拆片包或分析原片后开始校订
+                          </p>
+                        )
+                      )}
+                      <ReferenceDraftSection
                         id={id}
-                        episode={current}
-                        disabled={
-                          busy ||
-                          !!historical ||
-                          historyLoading ||
-                          current.status === "queued" ||
-                          !!drafts[`${current.id}:${current.revision}`]
-                        }
+                        reference={current}
+                        selectedShotIDs={selectedShotIDs}
+                        refreshVersion={analysisVersion}
                       />
-                    )}
-                    {current.status === "queued" && (
-                      <p role="status">本集正在处理中，其他集可继续校订</p>
-                    )}
-                    {current.status === "failed" && (
-                      <p role="status" className="text-destructive">
-                        {current.error || "本集处理失败"}
-                      </p>
-                    )}
-                    {actionError && (
-                      <p role="status" className="text-destructive">
-                        操作未保存，请核对修订并重试
-                      </p>
-                    )}
-                    {historical && (
-                      <p role="status" className="text-muted-foreground text-sm">
-                        正在回看历史修订 v{historical.revision}
-                      </p>
-                    )}
-                    {episode?.method === "rea-video-local" && (
-                      <p className="text-muted-foreground text-sm">
-                        本地切镜分析，角色和对白待校订
-                      </p>
-                    )}
-                    {historyLoading ? (
-                      <p role="status">正在读取历史修订…</p>
-                    ) : episode && draft ? (
-                      <ReferenceEditor
-                        key={episode.id}
-                        episode={episode}
-                        draft={draft}
-                        roles={data.roles}
-                        disabled={busy || !!historical || current.status === "queued"}
-                        onChange={(next) => setDrafts((old) => ({ ...old, [draftKey]: next }))}
-                        onSave={() => void save()}
-                      />
-                    ) : (
-                      current.status !== "queued" && (
-                        <p className="text-muted-foreground py-8">导入拆片包或分析原片后开始校订</p>
-                      )
-                    )}
-                  </>
-                )}
-              </section>
-            </div>
-          </>
+                    </>
+                  )}
+                </section>
+              </div>
+            </section>
+            {assistantOpen && (
+              <aside
+                id="reference-assistant"
+                className="border-border min-w-0 border-t xl:sticky xl:top-4 xl:border-l xl:border-t-0"
+              >
+                <ReferenceAssistantPane
+                  canvasId={data.canvasId}
+                  projectId={id}
+                  reference={current}
+                  selectedShotIDs={selectedShotIDs}
+                  onShotSelectionChange={updateShotSelection}
+                  onAnalysisChanged={refreshAnalysis}
+                />
+              </aside>
+            )}
+          </div>
         )}
       </main>
     </div>

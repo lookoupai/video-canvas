@@ -14,6 +14,11 @@ import (
 
 // createReferenceAdoption 先校验全部依据和冲突，再在同一事务创建分集、采用记录和片段。
 func (s *DramaReferenceService) createReferenceAdoption(ctx context.Context, tx repository.DramaReferenceTx, p *model.DramaProject, id uint64, req *model.AdoptDramaReferenceReq, hash string) (*model.DramaReferenceAdoption, error) {
+	return s.createReferenceAdoptionWithPlan(ctx, tx, p, id, req, hash, nil)
+}
+
+// createReferenceAdoptionWithPlan 原子保存采用和可选的草稿生成路线提示词与裁剪值。
+func (s *DramaReferenceService) createReferenceAdoptionWithPlan(ctx context.Context, tx repository.DramaReferenceTx, p *model.DramaProject, id uint64, req *model.AdoptDramaReferenceReq, hash string, units map[string]model.DramaReferenceApplyUnit) (*model.DramaReferenceAdoption, error) {
 	ref, basis, err := s.adoptionBasis(ctx, tx, p, id, req)
 	if err != nil {
 		return nil, err
@@ -33,7 +38,7 @@ func (s *DramaReferenceService) createReferenceAdoption(ctx context.Context, tx 
 	}
 	ep.ReferenceBasis = row.Snapshot
 	if req.Mode == "follow" {
-		ids, err := saveAdoptionSegments(ctx, tx.DramaTx(), ep, basis, req.ShotIDs)
+		ids, err := saveAdoptionSegments(ctx, tx.DramaTx(), ep, basis, req.ShotIDs, units)
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +109,7 @@ func existingAdoptionEpisode(ctx context.Context, tx repository.DramaTx, p *mode
 }
 
 // saveAdoptionSegments 按稳定原镜 ID 更新所选片段，保留选版、其他片段和所有生成历史。
-func saveAdoptionSegments(ctx context.Context, tx repository.DramaTx, ep *model.DramaEpisode, basis model.DramaReferenceBasis, selected []string) ([]string, error) {
+func saveAdoptionSegments(ctx context.Context, tx repository.DramaTx, ep *model.DramaEpisode, basis model.DramaReferenceBasis, selected []string, units map[string]model.DramaReferenceApplyUnit) ([]string, error) {
 	rows, err := tx.Segments(ctx, ep.UserID, ep.ID)
 	if err != nil {
 		return nil, err
@@ -124,8 +129,18 @@ func saveAdoptionSegments(ctx context.Context, tx repository.DramaTx, ep *model.
 			row = model.DramaSegment{UserID: ep.UserID, EpisodeID: ep.ID, Seq: next, Revision: 1}
 		}
 		row.Prompt = referenceShotPrompt(basis, shot)
-		row.Seconds = int((shot.EndMs - shot.StartMs + 999) / 1000)
-		row.Remake, err = json.Marshal(model.DramaSegmentRemake{AdoptionID: basis.AdoptionID, ReferenceID: basis.ReferenceID, ReferenceRevision: basis.ReferenceRevision, AssetID: basis.AssetID, Sources: []model.DramaRemakeSource{{ShotID: shot.ID, StartMs: shot.StartMs, EndMs: shot.EndMs}}, Roles: basis.Roles, TargetDurationMs: shot.EndMs - shot.StartMs})
+		trimStart, targetDuration := int64(0), shot.EndMs-shot.StartMs
+		row.Seconds = int((targetDuration + 999) / 1000)
+		if unit, ok := units[shot.ID]; ok {
+			if unit.Prompt != "" {
+				row.Prompt = unit.Prompt
+			}
+			if unit.Duration > 0 {
+				row.Seconds = unit.Duration
+			}
+			trimStart, targetDuration = unit.TrimStartMs, unit.TargetDurationMs
+		}
+		row.Remake, err = json.Marshal(model.DramaSegmentRemake{AdoptionID: basis.AdoptionID, ReferenceID: basis.ReferenceID, ReferenceRevision: basis.ReferenceRevision, AssetID: basis.AssetID, Sources: []model.DramaRemakeSource{{ShotID: shot.ID, StartMs: shot.StartMs, EndMs: shot.EndMs}}, Roles: basis.Roles, TargetDurationMs: targetDuration, TrimStartMs: trimStart})
 		if err != nil {
 			return nil, err
 		}

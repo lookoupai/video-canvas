@@ -1,8 +1,7 @@
 // Package skills 是画布 Agent 的内置技能库：随二进制发布的 Markdown 文件，Agent 用 skill_search 找、skill_read 读。
 // 技能内容是写给模型看的方法说明，不是可执行代码；后台管理（草稿、发布）放在二期。
 //
-// 目前没有内置技能（原来的 5 个已删除，技能都由后台导入）。新增内置技能：在 skills/<name>/ 下放一份 SKILL.md；
-// skills/.gitkeep 只是让空目录也能被嵌入，有了内置技能后可以删掉。
+// reference-shot-analysis 随服务发布；其他技能由后台导入。新增内置技能：在 skills/<name>/ 下放一份 SKILL.md。
 package skills
 
 import (

@@ -8,7 +8,7 @@ import (
 )
 
 func TestSystem_DramaAppendsRulesOnlyForDrama(t *testing.T) {
-	if prompts.Version != 28 {
+	if prompts.Version != 29 {
 		t.Fatalf("短剧提示词版本=%d", prompts.Version)
 	}
 	base := strings.TrimRight(prompts.System("all"), "\n")
@@ -16,7 +16,7 @@ func TestSystem_DramaAppendsRulesOnlyForDrama(t *testing.T) {
 	if !strings.HasPrefix(drama, base+"\n\n") {
 		t.Fatal("短剧必须追加原提示词")
 	}
-	for _, word := range []string{"当前模式：短剧助手", "drama_read", "drama_update_outline", "drama_update_episode", "drama_update_segment", "drama_run_job", "revision", "67005", "67004", "审批", "不等待", "撤销本轮", "角色卡由资产拆解"} {
+	for _, word := range []string{"当前模式：短剧助手", "drama_read", "drama_reference_read", "drama_reference_prepare", "drama_reference_inspect", "drama_reference_draft", "preparation_frame_id", "单帧不能确认运动方向", "drama_update_outline", "drama_update_episode", "drama_update_segment", "drama_run_job", "revision", "67005", "67004", "审批", "不等待", "撤销本轮", "角色卡由资产拆解"} {
 		if !strings.Contains(drama, word) {
 			t.Errorf("缺少 %s", word)
 		}

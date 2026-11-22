@@ -15,7 +15,7 @@ import (
 // isDramaApproval 识别四个必须整体审批的短剧写工具。
 func isDramaApproval(kind string) bool {
 	switch kind {
-	case "drama_update_outline", "drama_update_episode", "drama_update_segment", "drama_run_job":
+	case "drama_update_outline", "drama_update_episode", "drama_update_segment", "drama_run_job", "drama_reference_apply", "drama_generate_segments":
 		return true
 	}
 	return false
@@ -143,6 +143,18 @@ func (b *AgentBridge) executeDramaWrite(ctx context.Context, rc RunContext, kind
 			return nil, errcode.ErrInvalidParams
 		}
 		return b.d.Drama.CreateAgentJob(ctx, rc.UserID, uint64(p.ID), approvalID, &req)
+	case "drama_reference_apply":
+		var approved dramaReferenceApplyApproval
+		if json.Unmarshal(a.Args, &approved) != nil || approved.ReferenceID == 0 || approved.DraftID == 0 || b.d.DramaPlans == nil {
+			return nil, errcode.ErrInvalidParams
+		}
+		return b.d.DramaPlans.ApplyForAgent(ctx, rc.UserID, uint64(p.ID), uint64(approved.ReferenceID), uint64(approved.DraftID), rc.SessionID, rc.RunID, &approved.Request)
+	case "drama_generate_segments":
+		var approved dramaReferenceGenerateApproval
+		if json.Unmarshal(a.Args, &approved) != nil || approved.ReferenceID == 0 || approved.DraftID == 0 || b.d.DramaPlans == nil {
+			return nil, errcode.ErrInvalidParams
+		}
+		return b.d.DramaPlans.Generate(ctx, rc.UserID, uint64(p.ID), uint64(approved.ReferenceID), uint64(approved.DraftID), &approved.Request)
 	}
 	return nil, errcode.ErrInvalidParams
 }

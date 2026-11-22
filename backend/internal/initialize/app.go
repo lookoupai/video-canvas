@@ -176,6 +176,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 		Registry:    aiCfgSvc,
 		Executor:    executor,
 		Assets:      assetSvc,
+		VideoProbe:  service.NewAssetReferenceVideoProbe(assetSvc, newVideoFrames()),
 		Broadcaster: hub,
 		Config:      cfg.AI,
 		Limits:      service.NewTaskLimitService(settingsSvc, userRepo), // 初始积分 / 并发上限：单用户覆盖 > 系统设置 > config
@@ -187,6 +188,9 @@ func NewApp(cfg *config.Config) (*App, error) {
 	dramaRepo := repository.NewDramaRepository(db)
 	dramaReferenceRepo := repository.NewDramaReferenceRepository(db)
 	dramaReferenceSvc := service.NewDramaReferenceService(service.DramaReferenceDeps{Repo: dramaReferenceRepo, Assets: assetSvc, Analyzer: reference.NewAnalyzer()})
+	dramaPreparationRepo := repository.NewDramaReferencePreparationRepository(db)
+	dramaPreparationSvc := service.NewDramaReferencePreparationService(service.DramaReferencePreparationDeps{Repo: dramaPreparationRepo, Assets: assetSvc, Frames: newVideoFrames(), Store: assetSvc, Analyzer: reference.NewAnalyzer()})
+	dramaReferenceDraftSvc := service.NewDramaReferenceDraftService(service.DramaReferenceDraftDeps{Repo: repository.NewDramaReferenceDraftRepository(db), Assets: assetSvc, Preparations: dramaPreparationSvc})
 	dramaCanvasRepo := repository.NewDramaCanvasRepository(db)
 	dramaCanvasSvc := service.NewDramaCanvasService(dramaCanvasRepo, hub)
 	composeVideo := videoframe.New(videoframe.Options{Timeout: 10 * time.Minute})
@@ -195,6 +199,10 @@ func NewApp(cfg *config.Config) (*App, error) {
 		Repo: dramaRepo, Tasks: taskSvc, Assets: assetSvc, Broadcaster: hub, Canvas: dramaCanvasRepo,
 		Intents:        repository.NewDramaSegmentIntentRepository(db),
 		ReferenceClips: service.NewRemakeMediaService(marketingRepo, assetSvc, composeVideo),
+	})
+	dramaReferencePlanSvc := service.NewDramaReferencePlanService(service.DramaReferencePlanDeps{
+		Repo: repository.NewDramaReferenceDraftRepository(db), Assets: assetSvc,
+		Registry: aiCfgSvc, Preparations: dramaPreparationSvc, Adoptions: dramaReferenceSvc, Segments: dramaSegments,
 	})
 	// 短剧和环节协议层共用同一个 LLM 网关实例，渠道限流（RPS / 并发）才是对两者合计生效。
 	textGateway := llmgateway.New(llmgateway.Options{IPAllowed: outboundIPPolicy(cfg), Observer: llmlog.Observer{}})
@@ -285,7 +293,12 @@ func NewApp(cfg *config.Config) (*App, error) {
 	adminLogs := service.NewAuditLogService(auditRepo)
 	management := agentsvc.AdminManagementDeps{Users: adminUsers, Register: settingsSvc, SMTP: smtpSvc, Storages: storageSvc, Processors: processorSvc, Usage: adminUsage, Logs: adminLogs, Operations: adminAuditRepo}
 	adminAssistant := agentsvc.NewAdminAssistantService(agentsvc.AdminAssistantDeps{Management: &management, Models: aiConfigRepo, Writer: aiCfgSvc, Users: userRepo, Channels: aiChannelRepo, Settings: pricingSvc, Audit: adminAuditRepo, History: adminAuditRepo, Plugins: aiPluginRepo, PluginWriter: aiPluginSvc, ChannelWriter: aiChannelSvc, Checker: plugin.NewDraftChecker(runnerClient), Trials: aiCfgSvc, Attempts: adminAuditRepo})
-	agentRT, err := newAgentRuntime(cfg, agentDeps{admin: adminAssistant, tasks: taskSvc, assets: assetSvc, assetLinks: assetSvc, frames: newVideoFrames(), frameStore: assetFrameStore{assetSvc}, repo: agentRepo, agent: agentSvc, canvas: agentCanvasSvc, registry: aiCfgSvc, secrets: aiCfgSvc, skills: skillSvc, drama: dramaSvc, segments: dramaSegments, toolCalls: observeRepo, modelRequests: observeRepo, ipAllowed: outboundIPPolicy(cfg), broadcaster: hub})
+	agentRT, err := newAgentRuntime(cfg, agentDeps{
+		admin: adminAssistant, tasks: taskSvc, assets: assetSvc, assetLinks: assetSvc, frames: newVideoFrames(), frameStore: assetFrameStore{assetSvc},
+		repo: agentRepo, agent: agentSvc, canvas: agentCanvasSvc, registry: aiCfgSvc, secrets: aiCfgSvc, skills: skillSvc,
+		drama: dramaSvc, segments: dramaSegments, references: dramaReferenceSvc, preparations: dramaPreparationSvc, drafts: dramaReferenceDraftSvc, plans: dramaReferencePlanSvc,
+		toolCalls: observeRepo, modelRequests: observeRepo, ipAllowed: outboundIPPolicy(cfg), broadcaster: hub,
+	})
 	if err != nil {
 		stopRunner(runnerStop)
 		closeRedis(rdb)
@@ -301,7 +314,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 
 	// 生成任务队列（River）：任务调度、并发、重试之外的实例心跳与救回都交给它；业务处理仍是 worker。
 	// 入队和后台操作总是可用，是否在本实例执行任务由 ai.worker.enabled 决定（API-only 实例关闭它）。
-	taskQueue, queueConn, err := newTaskQueue(cfg, db, taskSvc, executor, assetSvc, settingsSvc, dramaSvc, stepSvc, marketingSvc, storyboardSvc, dramaReferenceSvc)
+	taskQueue, queueConn, err := newTaskQueue(cfg, db, taskSvc, executor, assetSvc, settingsSvc, dramaSvc, stepSvc, marketingSvc, storyboardSvc, dramaReferenceSvc, dramaPreparationSvc)
 	if err != nil {
 		stopRunner(runnerStop)
 		closeRedis(rdb)
@@ -314,6 +327,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 	storyboardRepo.SetEnqueuer(taskQueue) // 分镜表拆分镜任务与 job 在业务事务里一并提交。
 	dramaRepo.SetEnqueuer(taskQueue)      // 短剧项目、流水线任务与 River job 在业务事务里一并提交。
 	dramaReferenceRepo.SetEnqueuer(taskQueue)
+	dramaPreparationRepo.SetEnqueuer(taskQueue)
 	riverUI, err := taskQueue.UIHandler(riverUIPrefix)
 	if err != nil {
 		queueConn.Close()
@@ -370,19 +384,22 @@ func NewApp(cfg *config.Config) (*App, error) {
 		agentProxy.WithRoleLookup(roleLookup)
 	}
 	engineHTTP := router.New(cfg.Server.Mode, cfg.JWT.Secret, router.Handlers{
-		PricingSettings: handler.NewPricingSettingsHandler(pricingSvc),
-		AgentProxy:      agentProxy,
-		Health:          handler.NewHealthHandler(db, rdb),
-		User:            handler.NewUserHandler(userSvc),
-		Me:              handler.NewMeHandler(meSvc),
-		CanvasProject:   handler.NewCanvasProjectHandler(canvasProjectSvc),
-		Drama:           handler.NewDramaHandler(dramaSvc),
-		DramaReference:  handler.NewDramaReferenceHandler(dramaReferenceSvc),
-		AdminStep:       handler.NewAdminStepHandler(stepSvc),
-		AdminFormatter:  handler.NewAdminFormatterHandler(),
-		Marketing:       handler.NewMarketingHandler(marketingSvc),
-		MarketingRemake: handler.NewMarketingRemakeHandler(marketingSvc),
-		DramaSegment:    handler.NewDramaSegmentHandler(dramaSegments),
+		PricingSettings:           handler.NewPricingSettingsHandler(pricingSvc),
+		AgentProxy:                agentProxy,
+		Health:                    handler.NewHealthHandler(db, rdb),
+		User:                      handler.NewUserHandler(userSvc),
+		Me:                        handler.NewMeHandler(meSvc),
+		CanvasProject:             handler.NewCanvasProjectHandler(canvasProjectSvc),
+		Drama:                     handler.NewDramaHandler(dramaSvc),
+		DramaReference:            handler.NewDramaReferenceHandler(dramaReferenceSvc),
+		DramaReferenceDraft:       handler.NewDramaReferenceDraftHandler(dramaReferenceDraftSvc),
+		DramaReferencePlan:        handler.NewDramaReferencePlanHandler(dramaReferencePlanSvc),
+		DramaReferencePreparation: handler.NewDramaReferencePreparationHandler(dramaPreparationSvc),
+		AdminStep:                 handler.NewAdminStepHandler(stepSvc),
+		AdminFormatter:            handler.NewAdminFormatterHandler(),
+		Marketing:                 handler.NewMarketingHandler(marketingSvc),
+		MarketingRemake:           handler.NewMarketingRemakeHandler(marketingSvc),
+		DramaSegment:              handler.NewDramaSegmentHandler(dramaSegments),
 		CanvasTransfer: handler.NewCanvasTransferHandler(service.NewCanvasTransferService(service.CanvasTransferDeps{
 			Canvases: canvasProjectRepo, Assets: assetSvc,
 			Tx: repository.NewCanvasTransferRepository(db), AppVersion: version.Version,

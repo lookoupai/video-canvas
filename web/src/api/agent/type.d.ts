@@ -628,6 +628,7 @@ export interface CanvasPatchDto {
 
 /** 后台助手每次发送带上的页面上下文（只对 admin 会话生效） */
 export interface AdminPageContext {
+  kind?: undefined;
   /** 当前后台路由，如 /admin/ai/channels */
   route: string;
   /** 当前选中的模型 */
@@ -637,6 +638,19 @@ export interface AdminPageContext {
   /** 当前选中的插件 */
   plugin_key?: string;
 }
+
+/** 短剧参考工作台的运行范围；服务端在注入提示前校验项目、参考修订和镜头归属。 */
+export interface DramaReferencePageContext {
+  kind: "drama_reference";
+  project_id: string;
+  reference_id: string;
+  reference_revision: number;
+  reference_title?: string;
+  reference_seq?: number;
+  selected_shot_ids?: string[];
+}
+
+export type AgentPageContext = AdminPageContext | DramaReferencePageContext;
 
 /** 新建后台助手会话 */
 export interface CreateAdminAssistantSessionReq {
@@ -695,8 +709,8 @@ export interface StartAgentRunReq {
   agent_model_key?: string;
   /** 图片附件，最多 9 张；当前模型不能看图时不能带 */
   attachments?: AgentAttachmentReq[];
-  /** 页面上下文，只对后台助手会话生效，画布会话忽略 */
-  page_context?: AdminPageContext;
+  /** 页面上下文只在后台或短剧助手运行使用 */
+  page_context?: AgentPageContext;
 }
 
 /** 对审批里某一项的决定 */

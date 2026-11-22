@@ -72,6 +72,27 @@ describe("页面上下文", () => {
     ).toEqual(["模型渠道", "模型：m1"]);
     expect(describePageContext(undefined)).toEqual([]);
   });
+
+  test("短剧分析消息保留发起时的参考修订和镜头范围", () => {
+    expect(
+      describePageContext({
+        kind: "drama_reference",
+        project_id: "1234567890abcdef1234567890abcdef",
+        reference_id: "abcdef1234567890abcdef1234567890",
+        reference_revision: 4,
+        reference_title: "门口追逐",
+        reference_seq: 2,
+        selected_shot_ids: ["shot-1", "shot-3", "shot-5", "shot-8"],
+      }).map(({ label }) => label),
+    ).toEqual([
+      "短剧项目 12345678",
+      "第 2 集 · 门口追逐 · 修订 4",
+      "镜头 shot-1",
+      "镜头 shot-3",
+      "镜头 shot-5",
+      "另有 1 镜",
+    ]);
+  });
 });
 
 const approvalEvent = (

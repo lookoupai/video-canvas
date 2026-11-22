@@ -823,7 +823,7 @@ export class AgentEngine {
       mode,
       selection,
       ...(attachments.length > 0 && { attachments: attachmentViews(attachments) }),
-      ...(sess.mode === "admin" &&
+      ...((mode === "admin" || mode === "drama") &&
         req.pageContext !== undefined && { page_context: req.pageContext }),
     });
     this.#emit(ev, "run.status", statusEvent("queued"));
@@ -833,7 +833,8 @@ export class AgentEngine {
       prepare: {
         message,
         max_steps: maxSteps,
-        ...(mode === "admin" && { page_context: req.pageContext }),
+        ...((mode === "admin" || mode === "drama") &&
+          req.pageContext !== undefined && { page_context: req.pageContext }),
       },
       recordHarness: true,
       fresh: true,

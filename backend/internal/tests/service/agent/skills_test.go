@@ -12,11 +12,11 @@ func TestAgentBridge_Skills(t *testing.T) {
 	b := newBridgeEnv(t)
 	tok, _ := b.token(t, "prompt")
 
-	t.Run("没有任何技能：skill_search 返回空列表，不报错", func(t *testing.T) {
-		for _, q := range []string{"拆镜", ""} {
+	t.Run("内置技能可搜索，空搜索返回技能目录", func(t *testing.T) {
+		for _, q := range []string{"关键帧", ""} {
 			res := b.tool(t, tok, "skill_search", map[string]any{"query": q})
-			if res.IsError || !strings.Contains(res.Content, `"skills":[]`) {
-				t.Errorf("搜 %q 应得到空列表: %+v", q, res)
+			if res.IsError || !strings.Contains(res.Content, `"name":"reference-shot-analysis"`) {
+				t.Errorf("搜 %q 应得到逐镜分析技能: %+v", q, res)
 			}
 		}
 	})
@@ -30,9 +30,9 @@ func TestAgentBridge_Skills(t *testing.T) {
 		}
 	})
 
-	t.Run("名字不对：工具错误里说明没有可用技能，不留一个空的列表", func(t *testing.T) {
+	t.Run("名字不对：工具错误只列出已发布技能", func(t *testing.T) {
 		res := b.tool(t, tok, "skill_read", map[string]any{"name": "../../etc/passwd"})
-		if !res.IsError || !strings.Contains(res.Content, "没有叫") || !strings.Contains(res.Content, "当前没有可用的技能") || strings.HasSuffix(res.Content, "：") {
+		if !res.IsError || !strings.Contains(res.Content, "没有叫") || !strings.Contains(res.Content, "reference-shot-analysis") {
 			t.Errorf("res=%+v", res)
 		}
 	})

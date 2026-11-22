@@ -90,6 +90,7 @@ type GenerationTaskDeps struct {
 	Registry    provider.Registry
 	Executor    provider.Executor
 	Assets      provider.AssetStore
+	VideoProbe  ReferenceVideoMetadataProbe
 	Broadcaster ws.Broadcaster // 为 nil 时不推送
 	Config      config.AI
 	Limits      TaskLimits        // 初始积分与并发上限的运行时来源（系统设置 + 单用户覆盖）；为 nil 时只用 Config
@@ -116,6 +117,7 @@ type GenerationTaskService struct {
 	registry    provider.Registry
 	executor    provider.Executor
 	assets      provider.AssetStore
+	videoProbe  ReferenceVideoMetadataProbe
 	broadcaster ws.Broadcaster
 	cfg         config.AI
 	limits      TaskLimits
@@ -140,6 +142,7 @@ func NewGenerationTaskService(deps GenerationTaskDeps, opts ...GenerationTaskOpt
 		registry:      deps.Registry,
 		executor:      deps.Executor,
 		assets:        deps.Assets,
+		videoProbe:    deps.VideoProbe,
 		broadcaster:   deps.Broadcaster,
 		cfg:           deps.Config,
 		limits:        deps.Limits,

@@ -1,5 +1,5 @@
 import type {
-  AdminPageContext,
+  AgentPageContext,
   AgentApprovalDto,
   AgentAttachmentDto,
   AgentDeletePayload,
@@ -47,7 +47,7 @@ export type TimelineItem =
       /** 随消息发出的图片附件（显示在气泡上方）；没有、旧事件都是空数组 */
       attachments: AgentAttachmentDto[];
       /** 后台助手：发送这条消息时的页面上下文；画布、短剧和旧事件没有 */
-      pageContext?: AdminPageContext;
+      pageContext?: AgentPageContext;
       /** 插话的 id（后端收下它时给的）；旧事件的插话没有，也不排队 */
       steerId?: string;
       /** 插话属于哪一轮运行 */
@@ -237,9 +237,29 @@ function attachmentsOf(v: unknown): AgentAttachmentDto[] {
 }
 
 /** 事件里的页面上下文（后台助手）：route 必须是字符串，其余键只留非空字符串 */
-function pageContextOf(v: unknown): AdminPageContext | undefined {
+function pageContextOf(v: unknown): AgentPageContext | undefined {
   if (!v || typeof v !== "object") return undefined;
   const c = v as Record<string, unknown>;
+  if (
+    c.kind === "drama_reference" &&
+    typeof c.project_id === "string" &&
+    typeof c.reference_id === "string" &&
+    Number.isSafeInteger(c.reference_revision) &&
+    (c.reference_revision as number) > 0 &&
+    Array.isArray(c.selected_shot_ids) &&
+    c.selected_shot_ids.every((id) => typeof id === "string")
+  ) {
+    return {
+      kind: "drama_reference",
+      project_id: c.project_id,
+      reference_id: c.reference_id,
+      reference_revision: c.reference_revision as number,
+      ...(str(c.reference_title) && { reference_title: str(c.reference_title) }),
+      ...(Number.isSafeInteger(c.reference_seq) &&
+        (c.reference_seq as number) > 0 && { reference_seq: c.reference_seq as number }),
+      selected_shot_ids: c.selected_shot_ids as string[],
+    };
+  }
   if (!str(c.route)) return undefined;
   return {
     route: str(c.route),
@@ -262,7 +282,7 @@ const assistantKey = (runId: string, n: number) => `a:${runId}:${n}`;
  */
 export function buildTimeline(
   state: AgentSessionState,
-  sentContexts: Readonly<Record<string, AdminPageContext>> = {},
+  sentContexts: Readonly<Record<string, AgentPageContext>> = {},
 ): TimelineItem[] {
   const items: (TimelineItem | RawTool)[] = [];
   const toolAt = new Map<string, number>();

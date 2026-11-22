@@ -14,7 +14,7 @@ import {
   undoAgentRun,
 } from "@/api/agent";
 import type {
-  AdminPageContext,
+  AgentPageContext,
   AgentAttachmentReq,
   AgentMode,
   AgentModelDto,
@@ -72,8 +72,8 @@ export function useAgentController({
   getViewport?: () => { x: number; y: number; zoom: number };
   /** 会话与运行的任务模式，默认全能创作 */
   mode?: AgentMode;
-  /** 后台助手（mode 为 admin）：发起运行时带上的页面上下文，没有为 undefined；其他入口忽略 */
-  pageContext?: AdminPageContext;
+  /** 后台或短剧助手发起运行时带上的页面上下文 */
+  pageContext?: AgentPageContext;
 }) {
   const admin = mode === "admin" && canvasId === ADMIN_SESSION_SCOPE;
   const settings = useAgentSettings();
@@ -90,7 +90,7 @@ export function useAgentController({
   const session = sessions.find((s) => s.id === sessionId) ?? null;
   const sendingRef = useRef(false);
   /** 本机发起的运行带的页面上下文（运行 id → 上下文）：事件里没带 page_context 时，消息下面的引用靠它 */
-  const [sentContexts, setSentContexts] = useState<Record<string, AdminPageContext>>({});
+  const [sentContexts, setSentContexts] = useState<Record<string, AgentPageContext>>({});
   /** 画布上的会话列表拿到了（成功或失败都算）：之前正文区不该闪出「空会话」 */
   const [loadedCanvas, setLoadedCanvas] = useState<string | null>(null);
   const listLoaded = loadedCanvas === canvasId;
@@ -241,9 +241,10 @@ export function useAgentController({
           viewport: getViewport?.(),
           agent_model_key: modelKey || undefined,
           ...(attachments?.length && { attachments }),
-          ...(admin && pageContext && { page_context: pageContext }),
+          ...((admin || mode === "drama") && pageContext && { page_context: pageContext }),
         });
-        if (admin && pageContext) setSentContexts((prev) => ({ ...prev, [run.id]: pageContext }));
+        if ((admin || mode === "drama") && pageContext)
+          setSentContexts((prev) => ({ ...prev, [run.id]: pageContext }));
         useAgentStore.getState().ingestRun(run);
         if (!admin) void useCreditsStore.getState().refresh();
         return true;

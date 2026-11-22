@@ -156,8 +156,27 @@ func TestToolRegistry_FilterByModeAndVision(t *testing.T) {
 	}
 }
 
+func TestToolRegistry_ReferenceToolsAreDramaOnly(t *testing.T) {
+	for _, name := range []string{
+		"drama_reference_read",
+		"drama_reference_prepare",
+		"drama_reference_status",
+		"drama_reference_inspect",
+		"drama_reference_draft",
+		"drama_reference_apply",
+		"drama_generate_segments",
+	} {
+		if !hasTool(declNames(AgentToolDecls("drama", true, false)), name) {
+			t.Errorf("短剧模式缺少参考工具 %s", name)
+		}
+		if hasTool(declNames(AgentToolDecls("all", true, false)), name) || hasTool(declNames(AgentToolDecls("admin", true, false)), name) {
+			t.Errorf("参考工具 %s 不应暴露给其他模式", name)
+		}
+	}
+}
+
 func TestToolRegistry_Scriptable(t *testing.T) {
-	notScriptable := map[string]bool{"show_card": true, "canvas_delete": true, "ask_user": true, "generate_media": true, "canvas_inspect_image": true, "canvas_inspect_video": true, "canvas_capture_frame": true}
+	notScriptable := map[string]bool{"show_card": true, "canvas_delete": true, "ask_user": true, "generate_media": true, "canvas_inspect_image": true, "canvas_inspect_video": true, "canvas_capture_frame": true, "drama_reference_apply": true, "drama_generate_segments": true}
 	for _, d := range AgentToolDecls("all", true, false) {
 		if d.Scriptable == notScriptable[d.Name] {
 			t.Errorf("%s 的 scriptable=%v：会创建审批或返回图片的工具不能给脚本调用，其余都可以", d.Name, d.Scriptable)
@@ -174,7 +193,8 @@ func TestToolRegistry_LabelsMatchFrontend(t *testing.T) {
 		"task_get": {"查询任务", "查任务"}, "skill_search": {"搜索技能", "技能"}, "skill_read": {"读取技能", "技能"},
 		"web_search": {"搜索网页", "搜索"}, "web_fetch": {"读取网页", "读网页"},
 		"canvas_inspect_video": {"查看视频", "看视频"}, "canvas_capture_frame": {"截取视频帧", "截帧"},
-		"show_card": {"展示卡片", "展示"},
+		"show_card":             {"展示卡片", "展示"},
+		"drama_reference_apply": {"采用逐镜计划", "采用"}, "drama_generate_segments": {"生成逐镜视频", "生成"},
 	}
 	for _, d := range AgentToolDecls("all", true, false) {
 		w, ok := want[d.Name]

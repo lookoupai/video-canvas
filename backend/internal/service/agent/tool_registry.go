@@ -86,6 +86,13 @@ var toolSpecs = []toolSpec{
 	{name: "show_card", label: "展示卡片", verb: "展示", run: nil},
 	{name: "admin_query", label: "查询后台记录", verb: "查询", scriptable: true, modes: []string{model.AgentModeAdmin}, run: (*AgentBridge).toolAdminQuery},
 	{name: "admin_get_resource", label: "读取后台资源", verb: "读取", scriptable: true, modes: []string{model.AgentModeAdmin}, run: (*AgentBridge).toolAdminGetResource},
+	{name: "drama_reference_read", label: "读取参考剧集", verb: "读取", scriptable: true, modes: []string{model.AgentModeDrama}, run: (*AgentBridge).toolDramaReferenceRead},
+	{name: "drama_reference_prepare", label: "准备原片证据", verb: "准备", scriptable: true, modes: []string{model.AgentModeDrama}, run: (*AgentBridge).toolDramaReferencePrepare},
+	{name: "drama_reference_status", label: "查询分析进度", verb: "查进度", scriptable: true, modes: []string{model.AgentModeDrama}, run: (*AgentBridge).toolDramaReferenceStatus},
+	{name: "drama_reference_inspect", label: "查看原片帧图", verb: "看图", needsVision: true, modes: []string{model.AgentModeDrama}, run: (*AgentBridge).toolDramaReferenceInspect},
+	{name: "drama_reference_draft", label: "保存分析草稿", verb: "保存草稿", modes: []string{model.AgentModeDrama}, run: (*AgentBridge).toolDramaReferenceDraft},
+	{name: "drama_reference_apply", label: "采用逐镜计划", verb: "采用", modes: []string{model.AgentModeDrama}, run: (*AgentBridge).toolDramaReferenceApply},
+	{name: "drama_generate_segments", label: "生成逐镜视频", verb: "生成", modes: []string{model.AgentModeDrama}, run: (*AgentBridge).toolDramaReferenceGenerate},
 }
 
 // layoutModes 是能排列、删除和生成的任务模式：全能创作、分镜搭建和短剧助手。

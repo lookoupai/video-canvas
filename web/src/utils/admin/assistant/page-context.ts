@@ -1,8 +1,15 @@
-import type { AdminPageContext } from "@/api/agent/type";
+import type { AgentPageContext, AdminPageContext } from "@/api/agent/type";
 import { findNav } from "@/pages/admin/admin-nav";
 
 /** 页面上下文的引用标签：页面、渠道、模型、插件 */
-export type ContextChipId = "page" | "channel" | "model" | "plugin";
+export type ContextChipId =
+  | "page"
+  | "channel"
+  | "model"
+  | "plugin"
+  | "project"
+  | "reference"
+  | string;
 
 /** 页面里选中的东西（由各后台页面登记） */
 export type PageHints = {
@@ -78,8 +85,42 @@ export function buildPageContext(
  * 已发出的消息下方的引用：由当时的 page_context 还原标签
  * @param context 消息的 page_context
  */
-export function describePageContext(context: AdminPageContext | undefined): ContextChip[] {
+export function describePageContext(context: AgentPageContext | undefined): ContextChip[] {
   if (!context) return [];
+  if (context.kind === "drama_reference") {
+    const title = context.reference_title || context.reference_id;
+    const sequence = context.reference_seq ? `第 ${context.reference_seq} 集 · ` : "";
+    return [
+      {
+        id: "project",
+        label: `短剧项目 ${context.project_id.slice(0, 8)}`,
+        title: context.project_id,
+        value: context.project_id,
+      },
+      {
+        id: "reference",
+        label: `${sequence}${title} · 修订 ${context.reference_revision}`,
+        title: context.reference_id,
+        value: context.reference_id,
+      },
+      ...(context.selected_shot_ids ?? []).slice(0, 3).map((shotId) => ({
+        id: `shot:${shotId}`,
+        label: `镜头 ${shotId}`,
+        title: shotId,
+        value: shotId,
+      })),
+      ...((context.selected_shot_ids?.length ?? 0) > 3
+        ? [
+            {
+              id: "shots:more",
+              label: `另有 ${context.selected_shot_ids!.length - 3} 镜`,
+              title: context.selected_shot_ids!.slice(3).join(", "),
+              value: "",
+            },
+          ]
+        : []),
+    ];
+  }
   return pageContextChips(context.route, {
     channelKey: context.channel_key,
     modelKey: context.model_key,

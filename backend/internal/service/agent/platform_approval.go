@@ -21,16 +21,18 @@ import (
 
 // approvalTools 是审批种类对应的工具：模式限制、参数校验、预检和算价都沿用这些工具里已有的逻辑。
 var approvalTools = map[string]string{
-	"admin_secret":         "admin_request_secret",
-	"admin_test_run":       "admin_test_run",
-	"admin_change":         "admin_propose_changes",
-	model.ApprovalGenerate: "generate_media",
-	model.ApprovalDelete:   "canvas_delete",
-	model.ApprovalAsk:      "ask_user",
-	"drama_update_outline": "drama_update_outline",
-	"drama_update_episode": "drama_update_episode",
-	"drama_update_segment": "drama_update_segment",
-	"drama_run_job":        "drama_run_job",
+	"admin_secret":            "admin_request_secret",
+	"admin_test_run":          "admin_test_run",
+	"admin_change":            "admin_propose_changes",
+	model.ApprovalGenerate:    "generate_media",
+	model.ApprovalDelete:      "canvas_delete",
+	model.ApprovalAsk:         "ask_user",
+	"drama_update_outline":    "drama_update_outline",
+	"drama_update_episode":    "drama_update_episode",
+	"drama_update_segment":    "drama_update_segment",
+	"drama_run_job":           "drama_run_job",
+	"drama_reference_apply":   "drama_reference_apply",
+	"drama_generate_segments": "drama_generate_segments",
 }
 
 // ApprovalProposal 是一次预估的结果。校验不过时 IsError 为真，Content 是写给模型看的原因（和令牌模式下的工具错误一致），没有审批内容。

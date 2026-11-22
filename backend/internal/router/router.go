@@ -12,14 +12,17 @@ import (
 
 // Handlers 汇总所有 handler，新增模块时在这里加字段并注册路由。
 type Handlers struct {
-	DramaReference *handler.DramaReferenceHandler
-	Health         *handler.HealthHandler
-	User           *handler.UserHandler
-	Me             *handler.MeHandler // 个人中心：资料、头像、改密码、统计、热力图、积分流水
-	CanvasProject  *handler.CanvasProjectHandler
-	CanvasTransfer *handler.CanvasTransferHandler // 画布导出为文档、从文档导入为新画布
-	Storyboard     *handler.StoryboardHandler     // 画布分镜表：从剧本拆分镜
-	Conversation   *handler.ConversationHandler   // 首页生成：对话与生成记录
+	DramaReference            *handler.DramaReferenceHandler
+	DramaReferenceDraft       *handler.DramaReferenceDraftHandler
+	DramaReferencePlan        *handler.DramaReferencePlanHandler
+	DramaReferencePreparation *handler.DramaReferencePreparationHandler
+	Health                    *handler.HealthHandler
+	User                      *handler.UserHandler
+	Me                        *handler.MeHandler // 个人中心：资料、头像、改密码、统计、热力图、积分流水
+	CanvasProject             *handler.CanvasProjectHandler
+	CanvasTransfer            *handler.CanvasTransferHandler // 画布导出为文档、从文档导入为新画布
+	Storyboard                *handler.StoryboardHandler     // 画布分镜表：从剧本拆分镜
+	Conversation              *handler.ConversationHandler   // 首页生成：对话与生成记录
 	// AgentProxy：画布 Agent 的会话、运行、审批、评价由独立的 Agent 服务负责，这些接口只校验登录态后反向代理过去
 	// （路径、方法、信封不变）；技能目录等仍由 Go 自己处理。为 nil 表示没有启用 Agent，这些接口统一返回「Agent 暂不可用」。
 	AgentProxy      *agenthandler.AgentProxyHandler
@@ -265,6 +268,21 @@ func New(mode, jwtSecret string, h Handlers) *gin.Engine {
 		dramas.PATCH("/:id/references/:reference", h.DramaReference.Update)
 		dramas.POST("/:id/references/:reference/import", h.DramaReference.Import)
 		dramas.POST("/:id/references/:reference/analyze", h.DramaReference.Analyze)
+		dramas.POST("/:id/references/:reference/preparations", h.DramaReferencePreparation.Create)
+		dramas.GET("/:id/references/:reference/preparations", h.DramaReferencePreparation.List)
+		dramas.GET("/:id/references/:reference/preparations/:preparation", h.DramaReferencePreparation.Get)
+		dramas.GET("/:id/references/:reference/preparations/:preparation/shots", h.DramaReferencePreparation.Shots)
+		dramas.GET("/:id/references/:reference/preparations/:preparation/frames", h.DramaReferencePreparation.Frames)
+		dramas.POST("/:id/references/:reference/preparations/:preparation/cancel", h.DramaReferencePreparation.Cancel)
+		dramas.POST("/:id/references/:reference/preparations/:preparation/resume", h.DramaReferencePreparation.Resume)
+		dramas.POST("/:id/references/:reference/preparations/:preparation/frames", h.DramaReferencePreparation.AddFrames)
+		dramas.POST("/:id/references/:reference/drafts", h.DramaReferenceDraft.Create)
+		dramas.GET("/:id/references/:reference/drafts", h.DramaReferenceDraft.List)
+		dramas.GET("/:id/references/:reference/drafts/:draft", h.DramaReferenceDraft.Get)
+		dramas.PATCH("/:id/references/:reference/drafts/:draft", h.DramaReferenceDraft.Update)
+		dramas.POST("/:id/references/:reference/drafts/:draft/quote", h.DramaReferencePlan.Quote)
+		dramas.POST("/:id/references/:reference/drafts/:draft/apply", h.DramaReferencePlan.Apply)
+		dramas.POST("/:id/references/:reference/drafts/:draft/generate", h.DramaReferencePlan.Generate)
 		dramas.POST("/:id/references/:reference/adopt", h.DramaReference.Adopt)
 		dramas.GET("/:id/reference-adoptions", h.DramaReference.Adoptions)
 		dramas.POST("/:id/reference-roles", h.DramaReference.CreateRole)

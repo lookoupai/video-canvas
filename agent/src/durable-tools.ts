@@ -98,6 +98,8 @@ const APPROVAL_KIND: Record<string, ApprovalKind> = {
   drama_update_episode: "drama_update_episode",
   drama_update_segment: "drama_update_segment",
   drama_run_job: "drama_run_job",
+  drama_reference_apply: "drama_reference_apply",
+  drama_generate_segments: "drama_generate_segments",
 };
 
 /**
@@ -139,10 +141,17 @@ const SAFE = new Set([
   "canvas_delete",
   "ask_user",
   "drama_read",
+  "drama_reference_read",
+  "drama_reference_prepare",
+  "drama_reference_status",
+  "drama_reference_inspect",
+  "drama_reference_draft",
   "drama_update_outline",
   "drama_update_episode",
   "drama_update_segment",
   "drama_run_job",
+  "drama_reference_apply",
+  "drama_generate_segments",
 ]);
 export const replayOf = (name: string): "safe" | "unsafe" => (SAFE.has(name) ? "safe" : "unsafe");
 

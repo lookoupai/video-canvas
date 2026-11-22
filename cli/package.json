@@ -1,0 +1,17 @@
+{
+  "name": "video-canvas-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "video-canvas user API client for creative workflows",
+  "type": "module",
+  "bin": {
+    "vc": "./vc.mjs"
+  },
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check vc.mjs && node --check client.mjs && npm test"
+  }
+}

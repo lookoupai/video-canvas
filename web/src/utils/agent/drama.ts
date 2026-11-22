@@ -10,6 +10,8 @@ export const DRAMA_REFRESH_TOOLS: readonly string[] = [
   "drama_update_episode",
   "drama_update_segment",
   "drama_run_job",
+  "drama_reference_apply",
+  "drama_generate_segments",
 ];
 
 /** 这条 Agent 事件是不是「短剧助手的写工具成功结束」：是就该刷新短剧详情；别的画布、失败的调用、其他事件都不算 */

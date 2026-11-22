@@ -611,12 +611,15 @@ func TestPlatformHandler_ApprovalBusinessErrorsKeepTheirCode(t *testing.T) {
 
 func TestPlatformHandler_PrepareRunPassesContextAndBody(t *testing.T) {
 	api := &fakePlatform{setup: &agentsvc.RunSetup{SystemPrompt: "你是画布助手", FirstMessage: "拆分镜", Model: agentsvc.RunModel{ContextWindow: 200000}}}
-	w := platformCall(newPlatformRouter(api), http.MethodPost, "/internal/platform/v1/runs/prepare", `{"message":"拆分镜","max_steps":25}`, map[string]string{"X-Agent-Context": ctxHeader(goodCtx)})
+	w := platformCall(newPlatformRouter(api), http.MethodPost, "/internal/platform/v1/runs/prepare", `{"message":"拆分镜","max_steps":25,"page_context":{"kind":"drama_reference","project_id":"project","reference_id":"reference","reference_revision":4,"selected_shot_ids":["shot-2"]}}`, map[string]string{"X-Agent-Context": ctxHeader(goodCtx)})
 	if w.Code != 200 || respCode(t, w) != 0 {
 		t.Fatalf("%d %s", w.Code, w.Body)
 	}
 	if api.rc.RunID != 1152921504606846977 || api.rc.ModelKey != "claude" || api.prepReq.Message != "拆分镜" || api.prepReq.MaxSteps != 25 {
 		t.Errorf("业务层收到的: %+v %+v", api.rc, api.prepReq)
+	}
+	if !strings.Contains(string(api.prepReq.PageContext), `"reference_revision":4`) || !strings.Contains(string(api.prepReq.PageContext), `"shot-2"`) {
+		t.Errorf("页面上下文未传入业务层: %s", api.prepReq.PageContext)
 	}
 	for _, want := range []string{`"system_prompt":"你是画布助手"`, `"first_message":"拆分镜"`, `"context_window":200000`} {
 		if !strings.Contains(w.Body.String(), want) {

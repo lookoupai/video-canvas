@@ -1436,5 +1436,186 @@
       }
     }
   }
+},
+{
+  "name": "drama_reference_read",
+  "description": "读取当前短剧的参考集目录、单集原片拆解、分析草稿、媒体准备状态或报价逐镜计划。参考文档和草稿按 shot_cursor、shot_limit 分页；先读参考集和已有修订，再决定是否补充分析。",
+  "parameters": {
+    "type": "object",
+    "required": ["scope"],
+    "additionalProperties": false,
+    "properties": {
+      "scope": {"type": "string", "enum": ["collection", "reference", "drafts", "preparation", "draft", "quote"]},
+      "reference_id": {"type": "string", "description": "参考集 ID，使用项目目录中的编码 ID"},
+      "revision": {"type": "integer", "minimum": 1},
+      "preparation_id": {"type": "string"},
+      "draft_id": {"type": "string"},
+      "cursor": {"type": "string"},
+      "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+      "shot_cursor": {"type": "string"},
+      "shot_limit": {"type": "integer", "minimum": 1, "maximum": 50},
+      "quote": {"type": "object", "description": "scope=quote 时传入，结构与 drama_reference_apply.quote 相同：revision、model_id、units 和可选 max_credits。每镜需提供 shot_id，并可设置 mode、image_asset_ids、duration、trim_start_ms、target_duration_ms 和 params。"}
+    }
+  }
+},
+{
+  "name": "drama_reference_prepare",
+  "description": "冻结指定参考修订并排入原片镜头与关键帧准备。支持选镜；重复执行可恢复同一准备结果，不会改动正式参考稿。",
+  "parameters": {
+    "type": "object",
+    "required": ["reference_id", "revision"],
+    "additionalProperties": false,
+    "properties": {
+      "reference_id": {"type": "string"},
+      "revision": {"type": "integer", "minimum": 1},
+      "shot_ids": {"type": "array", "maxItems": 200, "items": {"type": "string"}}
+    }
+  }
+},
+{
+  "name": "drama_reference_status",
+  "description": "查询原片媒体准备或分析草稿的可恢复状态。每次刷新后先查已有 ID，不要重新创建重复任务。",
+  "parameters": {
+    "type": "object",
+    "required": ["reference_id"],
+    "additionalProperties": false,
+    "properties": {
+      "reference_id": {"type": "string"},
+      "preparation_id": {"type": "string"},
+      "draft_id": {"type": "string"}
+    }
+  }
+},
+{
+  "name": "drama_reference_inspect",
+  "description": "查看指定镜头已经持久保存的原片帧图，返回真实系统证据 ID、素材、镜内时间码和图片。每次最多看 4 张，下一页用 cursor。",
+  "parameters": {
+    "type": "object",
+    "required": ["reference_id", "preparation_id", "shot_id"],
+    "additionalProperties": false,
+    "properties": {
+      "reference_id": {"type": "string"},
+      "preparation_id": {"type": "string"},
+      "shot_id": {"type": "string"},
+      "cursor": {"type": "string"},
+      "limit": {"type": "integer", "minimum": 1, "maximum": 4}
+    }
+  }
+},
+{
+  "name": "drama_reference_draft",
+  "description": "创建或按草稿 revision 保存逐镜理解结果、提示词、系统帧证据和 coverage。Agent 来源由平台记录；不得把推测标成观察事实，冲突后先读最新草稿。",
+  "parameters": {
+    "type": "object",
+    "required": ["action", "reference_id"],
+    "additionalProperties": false,
+    "properties": {
+      "action": {"type": "string", "enum": ["create", "update"]},
+      "reference_id": {"type": "string"},
+      "preparation_id": {"type": "string"},
+      "reference_revision": {"type": "integer", "minimum": 1},
+      "draft_id": {"type": "string"},
+      "revision": {"type": "integer", "minimum": 1},
+      "instruction": {"type": "string", "maxLength": 4000},
+      "document": {"type": "object"},
+      "prompts": {"type": "array", "items": {"type": "object"}},
+      "evidence": {"type": "array", "items": {"type": "object"}},
+      "observations": {"type": "array", "items": {"type": "object"}},
+      "coverage": {"type": "object"}
+    }
+  }
+},
+{
+  "name": "drama_reference_apply",
+  "description": "提交草稿逐镜采用审批。引用最新 quote 的完整输入和 plan_digest，只有用户批准后才更新正式参考稿并写入跟拍分集；修改草稿或模型后需要重新报价。",
+  "parameters": {
+    "type": "object",
+    "required": ["reference_id", "draft_id", "revision", "plan_digest", "quote"],
+    "additionalProperties": false,
+    "properties": {
+      "reference_id": {"type": "string"},
+      "draft_id": {"type": "string"},
+      "revision": {"type": "integer", "minimum": 1},
+      "plan_digest": {"type": "string", "minLength": 64, "maxLength": 64},
+      "target_episode_no": {"type": "integer", "minimum": 0},
+      "episode_revision": {"type": "integer", "minimum": 0},
+      "reason": {"type": "string", "maxLength": 500},
+      "quote": {
+        "type": "object",
+        "required": ["revision", "model_id", "units"],
+        "additionalProperties": false,
+        "properties": {
+          "revision": {"type": "integer", "minimum": 1},
+          "model_id": {"type": "string", "maxLength": 128},
+          "max_credits": {"type": "integer", "minimum": 0},
+          "units": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "required": ["shot_id"],
+              "additionalProperties": false,
+              "properties": {
+                "shot_id": {"type": "string", "maxLength": 128},
+                "mode": {"type": "string", "enum": ["auto", "text", "keyframe", "image", "video"]},
+                "image_asset_ids": {"type": "array", "maxItems": 12, "items": {"type": "string"}},
+                "duration": {"type": "integer", "minimum": 0, "maximum": 86400},
+                "trim_start_ms": {"type": "integer", "minimum": 0},
+                "target_duration_ms": {"type": "integer", "minimum": 0},
+                "params": {"type": "object", "maxProperties": 32}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+},
+{
+  "name": "drama_generate_segments",
+  "description": "为已采用的草稿提交逐镜视频生成审批。传入应用回执、相同草稿修订、完整 quote 和 plan_digest；计划会重新报价，批准后才创建任务并冻结积分。",
+  "parameters": {
+    "type": "object",
+    "required": ["reference_id", "draft_id", "application_id", "revision", "plan_digest", "quote"],
+    "additionalProperties": false,
+    "properties": {
+      "reference_id": {"type": "string"},
+      "draft_id": {"type": "string"},
+      "application_id": {"type": "string"},
+      "revision": {"type": "integer", "minimum": 1},
+      "plan_digest": {"type": "string", "minLength": 64, "maxLength": 64},
+      "reason": {"type": "string", "maxLength": 500},
+      "quote": {
+        "type": "object",
+        "required": ["revision", "model_id", "units"],
+        "additionalProperties": false,
+        "properties": {
+          "revision": {"type": "integer", "minimum": 1},
+          "model_id": {"type": "string", "maxLength": 128},
+          "max_credits": {"type": "integer", "minimum": 0},
+          "units": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "required": ["shot_id"],
+              "additionalProperties": false,
+              "properties": {
+                "shot_id": {"type": "string", "maxLength": 128},
+                "mode": {"type": "string", "enum": ["auto", "text", "keyframe", "image", "video"]},
+                "image_asset_ids": {"type": "array", "maxItems": 12, "items": {"type": "string"}},
+                "duration": {"type": "integer", "minimum": 0, "maximum": 86400},
+                "trim_start_ms": {"type": "integer", "minimum": 0},
+                "target_duration_ms": {"type": "integer", "minimum": 0},
+                "params": {"type": "object", "maxProperties": 32}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
 ]

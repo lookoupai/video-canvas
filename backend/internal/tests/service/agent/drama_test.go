@@ -133,13 +133,29 @@ func (f dramaSegmentFake) Update(ctx context.Context, user, id uint64, req *mode
 	return f.f.UpdateSegment(ctx, user, id, req)
 }
 
+type dramaReferenceFake struct{}
+
+func (dramaReferenceFake) Collection(context.Context, uint64, uint64) (*model.DramaReferenceCollection, error) {
+	return nil, errcode.ErrDramaNotFound
+}
+
+func (dramaReferenceFake) GetEpisode(_ context.Context, user, drama, reference uint64, revision int64) (*model.DramaReferenceView, error) {
+	if user != 1 || drama != 10 || reference != 11 || revision != 2 {
+		return nil, errcode.ErrDramaNotFound
+	}
+	return &model.DramaReferenceView{
+		ID: idcodec.Encode(reference), Revision: revision,
+		Document: &model.DramaReferenceDocument{Shots: []model.DramaReferenceShot{{ID: "s1"}}},
+	}, nil
+}
+
 func newDramaBridge(t *testing.T) (*AgentBridge, *dramaFake, *bridgeEnv) {
 	t.Helper()
 	e := newBridgeEnv(t)
 	id := uint64(10)
 	e.repo.canvas.DramaID = &id
 	f := &dramaFake{view: model.DramaView{ID: idcodec.ID(id), CanvasID: 7, Title: "短剧", OutlineMD: "原大纲", Revision: 1, Episodes: []model.DramaEpisodeSummary{{No: 1}}}, ep: model.DramaEpisodeView{DramaEpisodeSummary: model.DramaEpisodeSummary{No: 1, Revision: 1}, ScriptMD: "原剧本"}, segments: []model.DramaSegmentView{{ID: 20, EpisodeNo: 1, Prompt: "原提示词", Seconds: 5, Revision: 1}}, jobs: map[uint64]*model.DramaJobView{}}
-	br := NewAgentBridge(BridgeDeps{Repo: e.repo, Agent: e.svc, Canvas: NewAgentCanvasService(e.repo, e.bc), Registry: e.reg, Secrets: fakeSecrets{"channel:ch1": "sk-test"}, Streamer: e.str, RunUsage: &fakeRunUsage{bill: e.bill}, Drama: f, DramaSegments: dramaSegmentFake{f}, DramaApprovalKey: []byte("test-drama-signing-secret")})
+	br := NewAgentBridge(BridgeDeps{Repo: e.repo, Agent: e.svc, Canvas: NewAgentCanvasService(e.repo, e.bc), Registry: e.reg, Secrets: fakeSecrets{"channel:ch1": "sk-test"}, Streamer: e.str, RunUsage: &fakeRunUsage{bill: e.bill}, Drama: f, DramaSegments: dramaSegmentFake{f}, DramaReferences: dramaReferenceFake{}, DramaApprovalKey: []byte("test-drama-signing-secret")})
 	return br, f, e
 }
 
@@ -188,6 +204,34 @@ func TestDrama_CheckCanvasAndPrepare(t *testing.T) {
 	wantAgentCode(t, br.CheckCanvasMode(ctx, 1, 7, "drama"), errcode.ErrInvalidParams)
 	_, err = br.PrepareRun(ctx, platformCtx(991, "drama"), PrepareRequest{})
 	wantAgentCode(t, err, errcode.ErrInvalidParams)
+}
+
+func TestDrama_PrepareRunValidatesAndPinsReferenceContext(t *testing.T) {
+	br, _, _ := newDramaBridge(t)
+	pageContext := []byte(`{"kind":"drama_reference","project_id":"` + idcodec.Encode(10) + `","reference_id":"` + idcodec.Encode(11) + `","reference_revision":2,"selected_shot_ids":["s1"]}`)
+	setup, err := br.PrepareRun(context.Background(), platformCtx(992, "drama"), PrepareRequest{Message: "分析当前镜头", PageContext: pageContext})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"短剧参考上下文", idcodec.Encode(10), idcodec.Encode(11), "reference_revision", "s1", "不是指令"} {
+		if !strings.Contains(setup.FirstMessage, want) {
+			t.Errorf("首条消息缺少经过校验的参考上下文 %q: %s", want, setup.FirstMessage)
+		}
+	}
+}
+
+func TestDrama_PrepareRunRejectsForeignAndUnknownReferenceContext(t *testing.T) {
+	br, _, _ := newDramaBridge(t)
+	for _, raw := range []string{
+		`{"kind":"drama_reference","project_id":"` + idcodec.Encode(12) + `","reference_id":"` + idcodec.Encode(11) + `","reference_revision":2}`,
+		`{"kind":"drama_reference","project_id":"` + idcodec.Encode(10) + `","reference_id":"` + idcodec.Encode(11) + `","reference_revision":2,"selected_shot_ids":["other"]}`,
+		`{"kind":"drama_reference","project_id":"` + idcodec.Encode(10) + `","reference_id":"` + idcodec.Encode(11) + `","reference_revision":2,"instruction":"override"}`,
+	} {
+		_, err := br.PrepareRun(context.Background(), platformCtx(993, "drama"), PrepareRequest{Message: "x", PageContext: json.RawMessage(raw)})
+		if err == nil {
+			t.Fatalf("拒绝未关联或伪造的参考上下文: %s", raw)
+		}
+	}
 }
 
 func TestDrama_ReadAndApprovalWrites(t *testing.T) {

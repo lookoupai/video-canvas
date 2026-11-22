@@ -69,10 +69,74 @@ export interface StartRunRequest {
   attachments?: Array<{ asset_id: string }>;
 }
 
+export interface DramaReferencePageContext {
+  kind: "drama_reference";
+  project_id: string;
+  reference_id: string;
+  reference_revision: number;
+  reference_title?: string;
+  reference_seq?: number;
+  selected_shot_ids?: string[];
+}
+
 /** 一条消息最多几张图片附件（和 Go、前端一致） */
 const MAX_ATTACHMENTS = 9;
 /** 一条消息最多几个文本文件（.txt / .md），和图片分开计数；精确的分项上限由 Go 校验 */
 const MAX_DOCUMENTS = 3;
+
+function dramaReferencePageContext(value: unknown): DramaReferencePageContext {
+  const context = value as Record<string, unknown> | null;
+  const allowed = new Set([
+    "kind",
+    "project_id",
+    "reference_id",
+    "reference_revision",
+    "reference_title",
+    "reference_seq",
+    "selected_shot_ids",
+  ]);
+  if (
+    !context ||
+    typeof context !== "object" ||
+    Array.isArray(context) ||
+    Object.keys(context).some((key) => !allowed.has(key)) ||
+    context.kind !== "drama_reference" ||
+    typeof context.project_id !== "string" ||
+    !context.project_id ||
+    context.project_id.length > 64 ||
+    typeof context.reference_id !== "string" ||
+    !context.reference_id ||
+    context.reference_id.length > 64 ||
+    !Number.isSafeInteger(context.reference_revision) ||
+    (context.reference_revision as number) < 1 ||
+    (context.reference_title !== undefined &&
+      (typeof context.reference_title !== "string" || context.reference_title.length > 255)) ||
+    (context.reference_seq !== undefined &&
+      (!Number.isSafeInteger(context.reference_seq) || (context.reference_seq as number) < 1))
+  ) {
+    throw Err.invalidParams("短剧参考页面上下文格式错误");
+  }
+  const selected = context.selected_shot_ids ?? [];
+  if (
+    !Array.isArray(selected) ||
+    selected.length > 200 ||
+    selected.some((id) => typeof id !== "string" || !id || id.length > 128) ||
+    new Set(selected).size !== selected.length
+  ) {
+    throw Err.invalidParams("短剧参考镜头选择格式错误");
+  }
+  return {
+    kind: "drama_reference",
+    project_id: context.project_id,
+    reference_id: context.reference_id,
+    reference_revision: context.reference_revision as number,
+    ...(context.reference_title !== undefined && {
+      reference_title: context.reference_title as string,
+    }),
+    ...(context.reference_seq !== undefined && { reference_seq: context.reference_seq as number }),
+    selected_shot_ids: selected as string[],
+  };
+}
 
 /** 首条消息 / 标题：空白压成一个空格，最多 40 字；清空后返回 def */
 export function cleanTitle(raw: string, def: string): string {
@@ -279,10 +343,17 @@ export class AgentApiService {
       throw Err.invalidParams("后台会话只能使用 admin 模式");
     const message = req.message.trim();
     if (!message) throw Err.invalidParams("消息不能为空");
-    if ((req.mode || sess.mode) === "drama")
+    const mode = req.mode || sess.mode;
+    if (mode === "drama")
       await this.#platform(() =>
         this.#o.platform.checkCanvas(userId, sess.canvasId, undefined, "drama"),
       );
+    const pageContext =
+      mode === "admin"
+        ? req.page_context
+        : mode === "drama" && req.page_context !== undefined
+          ? dramaReferencePageContext(req.page_context)
+          : undefined;
     // 消息里的引用（节点、模型、技能）必须有效；选中的节点里已不存在的去掉
     const selection =
       sess.mode === "admin"
@@ -302,7 +373,7 @@ export class AgentApiService {
       selection,
       attachments,
       budgetCredits: req.budget_credits ?? 0,
-      pageContext: sess.mode === "admin" ? req.page_context : undefined,
+      pageContext,
     });
     return runView(this.#o.codec, run);
   }

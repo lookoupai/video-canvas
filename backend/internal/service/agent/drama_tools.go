@@ -82,6 +82,10 @@ func dramaTitle(kind string, p DramaApprovalPayload) string {
 		return fmt.Sprintf("修改第 %d 集", p.EpisodeNo)
 	case "drama_update_segment":
 		return fmt.Sprintf("修改第 %d 集的片段", p.EpisodeNo)
+	case "drama_reference_apply":
+		return "采用参考剧集逐镜计划"
+	case "drama_generate_segments":
+		return "生成参考剧集逐镜视频"
 	}
 	var a struct {
 		Step     string `json:"step"`
@@ -111,8 +115,11 @@ func (b *AgentBridge) dramaProposal(ctx context.Context, tc *toolCall, kind stri
 		return nil, err
 	}
 	summary := "修改短剧，等待审批"
-	if kind == "drama_run_job" {
+	switch kind {
+	case "drama_run_job", "drama_generate_segments":
 		summary = fmt.Sprintf("运行短剧任务，预估 %d 积分", p.Estimate)
+	case "drama_reference_apply":
+		summary = "采用参考剧集计划，等待审批"
 	}
 	return &toolOut{content: "已提交给用户确认，等待决定。批准后才会修改或提交任务。", summary: summary, terminate: true}, nil
 }

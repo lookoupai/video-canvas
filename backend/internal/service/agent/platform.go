@@ -98,7 +98,8 @@ var platformExcluded = map[string]bool{"plan_update": true, "show_card": true, "
 
 	"admin_propose_changes": true,
 	"admin_request_secret":  true, "admin_test_run": true,
-	"drama_update_outline": true, "drama_update_episode": true, "drama_update_segment": true, "drama_run_job": true}
+	"drama_update_outline": true, "drama_update_episode": true, "drama_update_segment": true, "drama_run_job": true,
+	"drama_reference_apply": true, "drama_generate_segments": true}
 
 // ExecutePlatformTool 在上下文模式下执行一次工具调用。和令牌模式的 ExecuteTool 的区别：
 // 没有运行记录要查、不发 tool.start / tool.end（Agent 服务自己发）、不记步数和步数上限（Agent 服务自己数）；工具调用的参数、结果、耗时照常留存（后台导出和失败分析要看）。

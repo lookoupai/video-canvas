@@ -332,8 +332,9 @@ func (h *PlatformHandler) ExecuteApproval(c *gin.Context) {
 
 // prepareBody 是运行准备的请求体；整个请求体可以省略（续跑）。
 type prepareBody struct {
-	Message  string `json:"message" binding:"max=20000" label:"message"`
-	MaxSteps int    `json:"max_steps" binding:"min=0,max=1000" label:"max_steps"`
+	PageContext json.RawMessage `json:"page_context"`
+	Message     string          `json:"message" binding:"max=20000" label:"message"`
+	MaxSteps    int             `json:"max_steps" binding:"min=0,max=1000" label:"max_steps"`
 }
 
 // PrepareRun 给 Agent 服务发起运行（或续跑）所需的、由平台决定的内容。不读写任何记录。
@@ -346,7 +347,7 @@ func (h *PlatformHandler) PrepareRun(c *gin.Context) {
 	if c.Request.ContentLength != 0 && !handler.BindJSON(c, &req) {
 		return
 	}
-	out, err := h.svc.PrepareRun(c.Request.Context(), rc, agentsvc.PrepareRequest{Message: req.Message, MaxSteps: req.MaxSteps})
+	out, err := h.svc.PrepareRun(c.Request.Context(), rc, agentsvc.PrepareRequest{PageContext: req.PageContext, Message: req.Message, MaxSteps: req.MaxSteps})
 	if err != nil {
 		response.Fail(c, err)
 		return

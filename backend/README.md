@@ -172,6 +172,15 @@ docker compose logs agent plugin-runner | grep '<编号>'
 | POST                | /api/v1/drama-reference-projects                     | 从参考剧集创建短剧与角色画布，携带用户级 request_key 支持重传 |
 | GET/POST/PUT/PATCH   | /api/v1/dramas/:id/references[/:reference]            | 参考集列表、追加、校订、历史修订和 order 排序，所有修改携带修订 |
 | POST                | /api/v1/dramas/:id/references/:reference/{import,analyze} | 上传拆片包或提交本地分析，按集后台处理；import 为 multipart package + revision，8 MB 上限 |
+| POST/GET            | /api/v1/dramas/:id/references/:reference/preparations | 创建或分页查询持久媒体准备；冻结 reference_revision，request_key 防重，最多 200 镜 |
+| GET                 | /api/v1/dramas/:id/references/:reference/preparations/:preparation | 查询准备状态、完成帧计数和音轨存在性 |
+| GET                 | /api/v1/dramas/:id/references/:reference/preparations/:preparation/{shots,frames} | 独立分页查询冻结镜头或系统帧；frames 可按 shot_id 筛选，单页最多 100 |
+| POST                | /api/v1/dramas/:id/references/:reference/preparations/:preparation/{cancel,resume,frames} | 取消保留结果；resume 携 request_key，frames 携 request_key 与镜内采样点，每次和每镜最多 24 点 |
+| POST/GET            | /api/v1/dramas/:id/references/:reference/drafts | 创建或游标分页读取独立分析草稿；创建携带 request_key、reference_revision，同键同输入重传复用 |
+| GET/PATCH           | /api/v1/dramas/:id/references/:reference/drafts/:draft | 读取或按 revision 修改草稿；合并校验证据与镜号，草稿不会改写正式参考稿 |
+| POST                | /api/v1/dramas/:id/references/:reference/drafts/:draft/quote | 校验发布模型、素材、路线和积分，返回只读报价及 plan_digest，不创建任务 |
+| POST                | /api/v1/dramas/:id/references/:reference/drafts/:draft/apply | 按报价摘要原子采用所选镜头，创建跟拍分集与片段，持久保存幂等回执 |
+| POST                | /api/v1/dramas/:id/references/:reference/drafts/:draft/generate | 重验采用回执和计划后按稳定逐镜任务键提交；重传恢复批次和既有任务 |
 | POST/PATCH          | /api/v1/dramas/:id/reference-roles[/:role]            | 跨集角色身份与本项目新角色节点对应，详见[参考剧集导入](../docs/仿拍二开/参考剧集导入.md) |
 | POST                | /api/v1/dramas/:id/references/:reference/adopt        | 按修订采用到分集；mode 为 follow 跟拍或 rewrite 原创改编；request_key 防重复；更新已有跟拍集须提供 target_episode_no、episode_revision、shot_ids |
 | GET                 | /api/v1/dramas/:id/reference-adoptions               | 不可变采用记录、当前目标集号与删除状态；角色和原稿后续变化不改已采用依据 |
